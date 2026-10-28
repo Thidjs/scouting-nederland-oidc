@@ -27,6 +27,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test -d plugins && test -f pkg_script.php
           find plugins -type f -name '*.php' -print0 | xargs -0 -r -n 1 php -l
           php -l pkg_script.php
       - name: Validate manifests and tag version
