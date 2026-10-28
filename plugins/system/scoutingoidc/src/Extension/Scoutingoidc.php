@@ -1,0 +1,1798 @@
+<?php
+
+/**
+ * @author      Charley Wu <akunzai@gmail.com>
+ * @copyright   Copyright (C) 2008-2026 Christophe Demko, Ioannis Barounis, Alexandre Gandois, Charley Wu. All rights reserved.
+ * @license     GNU General Public License, version 2. http://www.gnu.org/licenses/gpl-2.0.html
+ *
+ * @link        https://github.com/akunzai/joomla-external-login
+ */
+
+namespace Joomla\Plugin\System\Scoutingoidc\Extension;
+
+defined('_JEXEC') or die;
+
+use Joomla\CMS\Application\CMSApplication;
+use Joomla\CMS\Authentication\Authentication;
+use Joomla\CMS\Authentication\AuthenticationResponse;
+use Joomla\CMS\Cache\CacheController;
+use Joomla\CMS\Cache\CacheControllerFactoryInterface;
+use Joomla\CMS\Event\Model\PrepareFormEvent;
+use Joomla\CMS\Event\Result\ResultAwareInterface;
+use Joomla\CMS\Factory;
+use Joomla\CMS\Form\Form;
+use Joomla\CMS\Language\Text;
+use Joomla\CMS\Log\Log;
+use Joomla\CMS\MVC\Factory\MVCFactoryServiceInterface;
+use Joomla\CMS\Plugin\CMSPlugin;
+use Joomla\CMS\Router\Route;
+use Joomla\CMS\Session\Session;
+use Joomla\CMS\Uri\Uri;
+use Joomla\Component\Externallogin\Administrator\Authentication\ExternalAuthenticationResponse;
+use Joomla\Component\Externallogin\Administrator\Helper\ExternalloginHelper;
+use Joomla\Component\Externallogin\Administrator\Model\ServersModel;
+use Joomla\Component\Externallogin\Administrator\Service\Logger\ExternalloginLogEntry;
+use Joomla\Component\Externallogin\Administrator\Table\ServerTable;
+use Joomla\Database\DatabaseInterface;
+use Joomla\Event\DispatcherInterface;
+use Joomla\Event\Event;
+use Joomla\Http\HttpFactory;
+use Joomla\Plugin\System\Scoutingoidc\Claims\ClaimsResolver;
+use Joomla\Plugin\System\Scoutingoidc\Jwk\JwkConverter;
+use Joomla\Registry\Registry;
+use Lcobucci\Clock\SystemClock;
+use Lcobucci\JWT\Encoding\JoseEncoder;
+use Lcobucci\JWT\Signer;
+use Lcobucci\JWT\Signer\Rsa\Sha256;
+use Lcobucci\JWT\Signer\Rsa\Sha384;
+use Lcobucci\JWT\Signer\Rsa\Sha512;
+use Lcobucci\JWT\Token\Parser;
+use Lcobucci\JWT\UnencryptedToken;
+use Lcobucci\JWT\Validation\Constraint\IssuedBy;
+use Lcobucci\JWT\Validation\Constraint\LooseValidAt;
+use Lcobucci\JWT\Validation\Constraint\PermittedFor;
+use Lcobucci\JWT\Validation\Constraint\SignedWith;
+use Lcobucci\JWT\Validation\Validator;
+use RuntimeException;
+use Throwable;
+
+/**
+ * External Login - OIDC (OpenID Connect) plugin.
+ *
+ * @since 5.2.0
+ */
+class Scoutingoidc extends CMSPlugin
+{
+    /**
+     * @var ServerTable|null
+     */
+    protected $server;
+
+    /**
+     * The merged ID Token + UserInfo claims for the current login attempt.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $claims = [];
+
+    /**
+     * The externallogin server row bound to the user being logged out, captured by
+     * onUserLogout (before Joomla destroys the session) for onUserAfterLogout to redirect with,
+     * once the local session is already gone.
+     *
+     * @var object|null
+     */
+    protected $logoutServer;
+
+    /**
+     * The id_token retained from the user's OIDC login, captured by onUserLogout from session
+     * state before Joomla's own onUserLogout listener destroys it.
+     */
+    protected ?string $logoutIdToken = null;
+
+    /**
+     * Constructor.
+     *
+     * @param DispatcherInterface $dispatcher The event dispatcher
+     * @param array $config An array that holds the plugin configuration
+     */
+    public function __construct(DispatcherInterface $dispatcher, array $config = [])
+    {
+        parent::__construct($dispatcher, $config);
+        $this->loadLanguage();
+        require_once JPATH_ADMINISTRATOR . '/components/com_externallogin/src/Service/Logger/ExternalloginLogger.php';
+        Log::addLogger(
+            ['logger' => 'externallogin', 'db_table' => '#__externallogin_logs', 'plugin' => 'system-scoutingoidc'],
+            Log::ALL,
+            [
+                'system-scoutingoidc-autologin',
+                'system-scoutingoidc-login',
+                'system-scoutingoidc-logout',
+                'system-scoutingoidc-verify',
+                'system-scoutingoidc-discovery',
+                'system-scoutingoidc-groups',
+                'system-scoutingoidc-claims',
+            ]
+        );
+    }
+
+    /**
+     * Get icons.
+     */
+    public function onGetIcons(Event $event): void
+    {
+        /** @var CMSApplication */
+        $app = Factory::getApplication();
+        $context = $event->getArgument('context');
+        if ($context == 'com_externallogin') {
+            // Ensure language is loaded for translation
+            $this->loadLanguage();
+            $result   = $event->getArgument('result', []);
+            $result[] = [
+                [
+                    'image'  => 'icon-key',
+                    'link'   => Route::_('index.php?option=com_externallogin&task=server.add&plugin=system.scoutingoidc'),
+                    'alt'    => Text::_('PLG_SYSTEM_SCOUTINGOIDC_ALT'),
+                    'text'   => Text::_('PLG_SYSTEM_SCOUTINGOIDC_TEXT'),
+                    'target' => '_parent',
+                ],
+            ];
+
+            if ($event instanceof ResultAwareInterface) {
+                $event->addResult($result);
+            } else {
+                $event->setArgument('result', $result);
+            }
+        }
+    }
+
+    /**
+     * Get option.
+     */
+    public function onGetOption(Event $event): void
+    {
+        $context = $event->getArgument('context');
+
+        if ($context == 'com_externallogin') {
+            // Ensure language is loaded for translation
+            $this->loadLanguage();
+            $result   = $event->getArgument('result', []);
+            $result[] = ['value' => 'system.scoutingoidc', 'text' => 'PLG_SYSTEM_SCOUTINGOIDC_OPTION'];
+
+            if ($event instanceof ResultAwareInterface) {
+                $event->addResult($result);
+            } else {
+                $event->setArgument('result', $result);
+            }
+        }
+    }
+
+    /**
+     * Prepare Form.
+     */
+    public function onContentPrepareForm(PrepareFormEvent $event): void
+    {
+        $form = $event->getForm();
+
+        if ($form->getName() != 'com_externallogin.server.system.scoutingoidc') {
+            return;
+        }
+
+        // Ensure language is loaded for form labels
+        $this->loadLanguage();
+        Form::addFormPath(dirname(__DIR__, 2) . '/forms');
+        $form->loadFile('oidc', false);
+    }
+
+    /**
+     * Get Login URL.
+     *
+     * Redirects to the IdP's discovered authorization_endpoint using
+     * Authorization Code Flow with PKCE. The state/nonce/code_verifier for
+     * this attempt are stored in the Joomla session (user state), not the
+     * database — they are one-time values for the return leg only.
+     */
+    public function onGetLoginUrl(Event $event): void
+    {
+        $server = $event->getArgument('subject');
+
+        if (!$server || $server->plugin != 'system.scoutingoidc') {
+            return;
+        }
+
+        /** @var Registry $params */
+        $params = $server->params;
+        $service = $event->getArgument('service');
+
+        if ($service instanceof Uri) {
+            $service = (string) $service;
+        }
+
+        $url = $this->buildAuthorizationUrl($params, $server->id, (string) $service);
+
+        if ($url === null) {
+            return;
+        }
+
+        $this->log($params, 'log_login', 'system-scoutingoidc-login', 'Redirecting to authorization endpoint on server ' . $server->id, Log::INFO);
+
+        if ($event instanceof ResultAwareInterface) {
+            $event->addResult($url);
+        } else {
+            $event->setArgument('result', $url);
+        }
+    }
+
+    /**
+     * After initialise event.
+     *
+     * 1. Autologin — when a guest has no OIDC callback in flight, redirect once
+     *    per session to a published, autologin-enabled OIDC server using
+     *    prompt=none (OIDC silent authentication).
+     * 2. Callback — when the IdP returns a code/error, exchange the code for
+     *    tokens, verify the ID Token, merge UserInfo claims, and rewire the
+     *    request so Joomla's own login machinery picks it up.
+     */
+    public function onAfterInitialise(): void
+    {
+        // Ensure language is loaded for translation (early-lifecycle timing gap, issue #251)
+        $this->loadLanguage();
+
+        /** @var CMSApplication */
+        $app = Factory::getApplication();
+        $user = $app->getIdentity();
+
+        if (!$user->guest) {
+            return;
+        }
+
+        $input = $app->getInput();
+        $code = $input->get('code', '', 'RAW');
+        $state = $input->get('state', '', 'RAW');
+        $error = $input->get('error', '', 'RAW');
+        $serverID = $app->isClient('administrator') ? $input->get('server') : $app->getUserState('com_externallogin.server');
+        /** @var MVCFactoryServiceInterface */
+        $component = $app->bootComponent('com_externallogin');
+        $mvcFactory = $component->getMVCFactory();
+
+        // No OIDC callback in flight — try autologin (once per session per server).
+        if (!$code && !$error) {
+            if (!$serverID) {
+                /** @var ServersModel $model */
+                $model = $mvcFactory->createModel('Servers', 'Administrator', ['ignore_request' => true]);
+
+                if (!$model) {
+                    return;
+                }
+
+                $model->setState('filter.published', 1);
+                $model->setState('filter.plugin', 'system.scoutingoidc');
+                $model->setState('list.start', 0);
+                $model->setState('list.limit', 0);
+                $model->setState('list.ordering', 'a.ordering');
+                $model->setState('list.direction', 'ASC');
+                $servers = $model->getItems();
+
+                foreach ($servers as $server) {
+                    $params = new Registry($server->params);
+                    $serverID = $server->id;
+
+                    if (boolval($params->get('autologin')) && !$app->getUserState('system.scoutingoidc.autologin.' . $server->id)) {
+                        if (!$this->verifyServerIsAlive($params)) {
+                            $this->log(
+                                $params,
+                                'log_verify',
+                                'system-scoutingoidc-verify',
+                                'Unsuccessful verification of server ' . $serverID,
+                                Log::WARNING
+                            );
+
+                            continue;
+                        }
+
+                        $this->log(
+                            $params,
+                            'log_verify',
+                            'system-scoutingoidc-verify',
+                            'Successful verification of server ' . $serverID,
+                            Log::INFO
+                        );
+
+                        $service = (string) Uri::getInstance();
+                        // prompt=none: silent auth when the IdP already has a session; otherwise
+                        // the IdP returns error=login_required and we do not retry this session.
+                        $url = $this->buildAuthorizationUrl($params, $server->id, $service, true);
+
+                        if ($url === null) {
+                            continue;
+                        }
+
+                        $this->log(
+                            $params,
+                            'log_autologin',
+                            'system-scoutingoidc-autologin',
+                            'Trying autologin on server ' . $serverID,
+                            Log::INFO
+                        );
+
+                        $app->setUserState('com_externallogin.server', $server->id);
+                        $app->setUserState('system.scoutingoidc.autologin.' . $server->id, 1);
+                        $app->redirect($url, 302);
+
+                        break;
+                    }
+                }
+
+                return;
+            }
+
+            // serverID is set but no callback arrived — the visitor cancelled, the IdP was
+            // unreachable after the probe, or a prior attempt left residual state. Log when
+            // log_autologin is on (can fire on every subsequent guest request with residual
+            // com_externallogin.server until the session ends).
+            /** @var ServerTable|bool $server */
+            $server = $mvcFactory->createTable('Server', 'Administrator');
+
+            if ($server && $server->load($serverID) && $server->plugin == 'system.scoutingoidc') {
+                $this->log(
+                    $server->params,
+                    'log_autologin',
+                    'system-scoutingoidc-autologin',
+                    'Autologin failed on server ' . $serverID,
+                    Log::INFO
+                );
+            }
+
+            return;
+        }
+
+        if (!$serverID) {
+            return;
+        }
+
+        /** @var ServerTable|bool $server */
+        $server = $mvcFactory->createTable('Server', 'Administrator');
+
+        if (!$server || !$server->load($serverID) || $server->plugin != 'system.scoutingoidc') {
+            return;
+        }
+
+        /** @var Registry $params */
+        $params = $server->params;
+        $expectedState = $app->getUserState('system.scoutingoidc.state.' . $serverID);
+        $nonce = $app->getUserState('system.scoutingoidc.nonce.' . $serverID);
+        $verifier = $app->getUserState('system.scoutingoidc.verifier.' . $serverID);
+        $redirectUri = $app->getUserState('system.scoutingoidc.redirect.' . $serverID);
+
+        // One-time values: clear them regardless of the outcome below.
+        $app->setUserState('system.scoutingoidc.state.' . $serverID, null);
+        $app->setUserState('system.scoutingoidc.nonce.' . $serverID, null);
+        $app->setUserState('system.scoutingoidc.verifier.' . $serverID, null);
+        $app->setUserState('system.scoutingoidc.redirect.' . $serverID, null);
+
+        if ($error || !$code || !$state || !is_string($expectedState) || !hash_equals($expectedState, (string) $state)) {
+            // prompt=none autologin failures surface as error=login_required (or interaction_required).
+            if ($error && $app->getUserState('system.scoutingoidc.autologin.' . $serverID)) {
+                $this->log(
+                    $params,
+                    'log_autologin',
+                    'system-scoutingoidc-autologin',
+                    'Autologin failed on server ' . $serverID . ': ' . $error,
+                    Log::INFO
+                );
+            }
+
+            $this->log(
+                $params,
+                'log_login',
+                'system-scoutingoidc-login',
+                'Rejected OIDC callback on server ' . $serverID . ($error ? (': ' . $error) : ' (state mismatch)'),
+                Log::WARNING
+            );
+
+            return;
+        }
+
+        $this->log($params, 'log_login', 'system-scoutingoidc-login', 'Attempt to login using authorization code on server ' . $serverID, Log::INFO);
+
+        $discovery = $this->getDiscoveryDocument($params, $serverID);
+
+        if ($discovery === null) {
+            return;
+        }
+
+        $tokens = $this->exchangeCode(
+            $params,
+            $discovery,
+            (string) $code,
+            is_string($verifier) ? $verifier : null,
+            is_string($redirectUri) ? $redirectUri : '',
+            $serverID
+        );
+
+        if ($tokens === null || empty($tokens['id_token'])) {
+            return;
+        }
+
+        $idTokenClaims = $this->verifyIdToken(
+            $params,
+            $discovery,
+            (string) $tokens['id_token'],
+            is_string($nonce) ? $nonce : null,
+            $serverID
+        );
+
+        if ($idTokenClaims === null) {
+            return;
+        }
+
+        $userInfoClaims = $this->fetchUserInfo($params, $discovery, (string) ($tokens['access_token'] ?? ''), $serverID);
+
+        if ($userInfoClaims === null) {
+            return;
+        }
+
+        $isScoutingServer =
+            (string) $params->get('issuer', '') === 'https://login.scouting.nl'
+            && ($idTokenClaims['iss'] ?? null) === 'https://login.scouting.nl';
+
+        if (
+            !isset($idTokenClaims['sub'], $userInfoClaims['sub'])
+            || !is_string($idTokenClaims['sub'])
+            || !is_string($userInfoClaims['sub'])
+            || $idTokenClaims['sub'] === ''
+            || $idTokenClaims['sub'] !== $userInfoClaims['sub']
+        ) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'UserInfo "sub" mismatch on server ' . $serverID, Log::ERROR);
+
+            return;
+        }
+
+        // Scouting Nederland: reject conflicting identity claims before merging.
+        if ($isScoutingServer) {
+            if (
+                array_key_exists('iss', $userInfoClaims)
+                && $userInfoClaims['iss'] !== $idTokenClaims['iss']
+            ) {
+                $this->log(
+                    $params,
+                    'log_verify',
+                    'system-scoutingoidc-verify',
+                    'UserInfo issuer mismatch on Scouting server',
+                    Log::ERROR
+                );
+
+                return;
+            }
+
+            if (
+                array_key_exists('member_id', $idTokenClaims)
+                && array_key_exists('member_id', $userInfoClaims)
+                && (string) $idTokenClaims['member_id']
+                    !== (string) $userInfoClaims['member_id']
+            ) {
+                $this->log(
+                    $params,
+                    'log_verify',
+                    'system-scoutingoidc-verify',
+                    'UserInfo member_id mismatch on Scouting server',
+                    Log::ERROR
+                );
+
+                return;
+            }
+        }
+
+        $this->claims = array_merge($idTokenClaims, $userInfoClaims);
+
+        // Never replace verified ID-token identity fields with UserInfo.
+        if ($isScoutingServer) {
+            $this->claims['iss'] = $idTokenClaims['iss'];
+            $this->claims['sub'] = $idTokenClaims['sub'];
+        }
+// Scouting identity inspection (diagnostic, read-only).
+// Only run after ID token and UserInfo verification.
+if (
+    $isScoutingServer
+    && ($this->claims['iss'] ?? null) === 'https://login.scouting.nl'
+) {
+    try {
+        require_once __DIR__ . '/../Service/ScoutingIdentityService.php';
+
+        $db = Factory::getContainer()->get(
+            \Joomla\Database\DatabaseInterface::class
+        );
+
+        $identityService = new
+            \Joomla\Plugin\System\Scoutingoidc\Service\ScoutingIdentityService($db);
+
+        $identity = $identityService->validateClaims($this->claims);
+        $inspection = $identityService->inspect($identity, (int) $serverID);
+
+        $this->log(
+            $params,
+            'log_login',
+            'system-scoutingoidc-login',
+            'Scouting identity inspection: ' . $inspection['status'],
+            Log::INFO
+        );
+    } catch (\Throwable $e) {
+        $this->log(
+            $params,
+            'log_login',
+            'system-scoutingoidc-login',
+            'Scouting identity inspection failed',
+            Log::WARNING
+        );
+    }
+}
+
+
+$this->log(
+    $params,
+    'log_login',
+    'system-scoutingoidc-login',
+    'OIDC claim names: ' . implode(', ', array_keys($this->claims))
+        . ' | email_verified: '
+        . (
+            !array_key_exists('email_verified', $this->claims)
+                ? 'MISSING'
+                : ($this->claims['email_verified'] === true
+                    ? 'TRUE'
+                    : ($this->claims['email_verified'] === false
+                        ? 'FALSE'
+                        : 'OTHER'))
+        ),
+    Log::INFO
+);        
+
+$this->server = $server;
+
+        // Opt-in claims dump (CAS log_xml parity): only after JWT/UserInfo verification, never raw tokens.
+        if ($params->get('log_claims', 0)) {
+            $this->log(
+                $params,
+                'log_claims',
+                'system-scoutingoidc-claims',
+                'Analyzing claims on server ' . $serverID . "\n" . self::formatClaimsForLog($this->claims),
+                Log::INFO
+            );
+        }
+
+        // Retained for RP-Initiated Logout's id_token_hint. Must be read back from session state
+        // during onUserLogout, before Joomla's own onUserLogout listener destroys the session.
+        $app->setUserState('system.scoutingoidc.idtoken.' . $serverID, (string) $tokens['id_token']);
+
+        $service = Uri::getInstance();
+
+        foreach (['code', 'state', 'error', 'error_description', 'session_state', 'iss'] as $var) {
+            $service->delVar($var);
+        }
+
+        $query = $service->getQuery(true);
+        $return = '';
+
+        if (!empty($query) && count($query) === 1 && array_key_exists('Itemid', $query)) {
+            $menu      = $app->getMenu();
+            $menuEntry = $menu->getItem($query['Itemid']);
+
+            if (!empty($menuEntry)) {
+                $return = $menuEntry->link;
+            }
+        }
+
+        if (!$return) {
+            $return = 'index.php' . $service->toString(['query']);
+        }
+
+        if ($return == 'index.php?option=com_login') {
+            $return = 'index.php';
+        }
+
+        $request = $input->getInputForRequestMethod();
+
+        if ($app->isClient('administrator')) {
+            $input->set('option', 'com_login');
+            $input->set('task', 'login');
+            $input->set(Session::getFormToken(), 1);
+            $request->set('return', base64_encode($return));
+
+            return;
+        }
+
+        $redirect = $params->get('redirect');
+
+        if (!empty($redirect) && (!$params->get('noredirect') || $return != 'index.php')) {
+            $return = 'index.php?Itemid=' . $redirect;
+        }
+
+        $input->set('option', 'com_users');
+        $input->set('task', 'user.login');
+        $request->set('Itemid', 0);
+        $input->post->set(Session::getFormToken(), 1);
+        $request->set('return', base64_encode($return));
+    }
+
+    /**
+     * External Login event.
+     */
+    public function onExternalLogin(Event $event): void
+    {
+        /** @var AuthenticationResponse */
+        $response = $event->getArgument('response');
+
+        if (!$response || !$this->server) {
+            return;
+        }
+
+        $extResponse = ExternalAuthenticationResponse::fromResponse($response);
+        $server = $this->server;
+        /** @var Registry $params */
+        $params = $server->params;
+
+        $isScoutingServer =
+            (string) $params->get('issuer', '') === 'https://login.scouting.nl'
+            && ($this->claims['iss'] ?? null) === 'https://login.scouting.nl';
+
+        // This protocol plugin is exclusively for Scouting Nederland.
+        // Never fall through to the generic OIDC authentication path.
+        if (!$isScoutingServer) {
+            $extResponse->status = Authentication::STATUS_DENIED;
+            $extResponse->type = 'system.scoutingoidc';
+            $extResponse->error_message =
+                'De OIDC-provider is niet toegestaan voor Scouting Nederland.';
+
+            if ($response !== $extResponse) {
+                $response->status = $extResponse->status;
+                $response->type = $extResponse->type;
+                $response->error_message = $extResponse->error_message;
+            }
+
+            $event->setArgument('response', $extResponse);
+
+            if ($event instanceof ResultAwareInterface) {
+                $event->addResult(true);
+            } else {
+                $results = $event->getArgument('result', []);
+                $results[] = true;
+                $event->setArgument('result', $results);
+            }
+
+            return;
+        }
+
+        $username = ClaimsResolver::resolve($this->claims, (string) $params->get('username_claim', 'email'));
+        $email = ClaimsResolver::resolve($this->claims, (string) $params->get('email_claim', 'email'));
+        $fullname = ClaimsResolver::resolve($this->claims, (string) $params->get('name_claim', 'name'));
+
+// SOL member_id is returned as an integer.
+// Joomla usernames must be strings.
+if (
+    (string) $params->get('username_claim', 'email') === 'member_id'
+    && is_int($username)
+    && $username > 0
+) {
+    $username = (string) $username;
+}
+
+$this->log(
+    $params,
+    'log_login',
+    'system-scoutingoidc-login',
+    'Claim diagnostics: '
+        . 'username type=' . get_debug_type($username)
+        . ', username empty=' . ($username === '' || $username === null ? 'YES' : 'NO')
+        . ', email type=' . get_debug_type($email)
+        . ', email empty=' . ($email === '' || $email === null ? 'YES' : 'NO'),
+    Log::INFO
+);
+        if (!is_string($username) || $username === '' || !is_string($email) || $email === '') {
+            $this->log($params, 'log_login', 'system-scoutingoidc-login', 'Missing username/email claim on server ' . $server->id, Log::WARNING);
+
+            return;
+        }
+// Scouting Nederland: require an existing, verified identity binding.
+// Match the configured Scouting Nederland issuer.
+// NEW users remain denied until transactional registration is implemented.
+if ($isScoutingServer) {
+    $scoutingStatus = 'DENIED';
+
+    try {
+        require_once __DIR__ . '/../Service/ScoutingIdentityService.php';
+
+        $db = Factory::getContainer()->get(
+            \Joomla\Database\DatabaseInterface::class
+        );
+
+        $identityService = new
+            \Joomla\Plugin\System\Scoutingoidc\Service\ScoutingIdentityService($db);
+
+        $identity = $identityService->validateClaims($this->claims);
+        $inspection = $identityService->inspect($identity, (int) $server->id);
+
+        $scoutingStatus = $inspection['status'] ?? 'DENIED';
+
+        // Register a genuinely NEW Scouting identity atomically.
+        // Claims have already passed ID-token and UserInfo verification.
+        if (
+            $scoutingStatus === 'NEW'
+            && (bool) $params->get('scouting_registration_enabled', 0)
+        ) {
+            if ($username !== $identity['member_id']) {
+                throw new \RuntimeException('Scouting username mismatch');
+            }
+
+            // Reject values that would be changed when External Login
+            // constructs its final AuthenticationResponse.
+            if (!is_string($email)) {
+                throw new \RuntimeException(
+                    'Invalid Scouting email claim'
+                );
+            }
+
+            $sanitizedEmail = str_replace(
+                ['<', '>', '"', "'", '%', ';', '(', ')', '&', '\\'],
+                '',
+                $email
+            );
+
+            if ($sanitizedEmail !== $email) {
+                throw new \RuntimeException(
+                    'Scouting email is not compatible with External Login'
+                );
+            }
+
+            // Apply the same username/email filters as External Login
+            // BEFORE creating an account.
+            $usernamePattern = $params->get('regex_user', '');
+            $emailPattern = $params->get('regex_email', '');
+
+            if (
+                !is_string($usernamePattern)
+                || !is_string($emailPattern)
+            ) {
+                throw new \RuntimeException(
+                    'Invalid Scouting validation configuration'
+                );
+            }
+
+            foreach ([
+                [$usernamePattern, $username],
+                [$emailPattern, $email],
+            ] as [$pattern, $value]) {
+                // Empty pattern means no additional restriction.
+                if ($pattern === '') {
+                    continue;
+                }
+
+                $expression = chr(1) . $pattern . chr(1);
+
+                if (
+                    @preg_match($expression, $value) !== 1
+                ) {
+                    throw new \RuntimeException(
+                        'Scouting registration validation failed'
+                    );
+                }
+            }
+
+            require_once __DIR__ . '/../Service/ScoutingRegistrationService.php';
+
+            $registrationService = new
+                \Joomla\Plugin\System\Scoutingoidc\Service\ScoutingRegistrationService(
+                    $db,
+                    $identityService
+                );
+
+            $registrationService->register(
+                $this->claims,
+                $email,
+                is_string($fullname) && trim($fullname) !== ''
+                    ? $fullname
+                    : $identity['member_id'],
+                (int) $server->id
+            );
+
+            // Trust only a fully committed and reverified identity.
+            $inspection = $identityService->inspect($identity, (int) $server->id);
+            $scoutingStatus = $inspection['status'] ?? 'DENIED';
+        }
+
+        // Even for KNOWN identities, never select Joomla users
+        // through a different username claim.
+        if ($scoutingStatus === 'KNOWN'
+            && $username !== $identity['member_id']) {
+            $scoutingStatus = 'DENIED';
+        }
+
+
+    } catch (\Throwable $e) {
+        // Fail closed. Never expose claims or database details.
+        $scoutingStatus = 'DENIED';
+    }
+
+    if ($scoutingStatus !== 'KNOWN') {
+        $this->log(
+            $params,
+            'log_login',
+            'system-scoutingoidc-login',
+            'Scouting identity access denied: ' . $scoutingStatus,
+            Log::WARNING
+        );
+
+        $extResponse->status = Authentication::STATUS_DENIED;
+        $extResponse->type = 'system.scoutingoidc';
+        $extResponse->error_message =
+            'Scouting-identiteit is nog niet gekoppeld aan een Joomla-account.';
+
+        if ($response !== $extResponse) {
+            $response->status = $extResponse->status;
+            $response->type = $extResponse->type;
+            $response->error_message = $extResponse->error_message;
+        }
+
+        $event->setArgument('response', $extResponse);
+
+        if ($event instanceof ResultAwareInterface) {
+            $event->addResult(true);
+        } else {
+            $results = $event->getArgument('result', []);
+            $results[] = true;
+            $event->setArgument('result', $results);
+        }
+
+        return;
+    }
+}
+        // email_verified is the OIDC-standard signal that the provider confirmed the address.
+        // username_claim defaults to email, so an unverified or missing claim can select which
+        // Joomla account isActivatedForServer() matches. Policy:
+        // - always deny email_verified === false;
+        // - when username is taken from the email claim (default), also require
+        //   email_verified === true unless admin opts into allow_unverified_email.
+        // Providers that omit the claim must either verify email at the IdP and send true,
+        // use a non-email username_claim, or enable allow_unverified_email.
+        $usernameClaim = (string) $params->get('username_claim', 'email');
+        $emailClaim = (string) $params->get('email_claim', 'email');
+        $usernameFromEmailClaim = $usernameClaim === 'email' || $usernameClaim === $emailClaim;
+        $allowUnverifiedEmail = boolval($params->get('allow_unverified_email', 0));
+        $emailVerified = ClaimsResolver::resolve($this->claims, 'email_verified');
+        $emailNotVerified = $emailVerified === false
+            || ($usernameFromEmailClaim && !$allowUnverifiedEmail && $emailVerified !== true);
+
+        if ($emailNotVerified && !($isScoutingServer && $scoutingStatus === 'KNOWN')) {
+            $this->log(
+                $params,
+                'log_login',
+                'system-scoutingoidc-login',
+                'Unverified or missing email_verified claim on server ' . $server->id,
+                Log::WARNING
+            );
+
+            // Claim this attempt with an explicit denial rather than a silent early return.
+            // Leaving result empty lets authentication/externallogin skip stopPropagation(), so
+            // a later core plugin (authentication/joomla) overwrites the response with the
+            // misleading "Empty password not allowed." message (same class of bug as #249).
+            // @phpstan-ignore assign.propertyType
+            $extResponse->status = Authentication::STATUS_DENIED;
+            $extResponse->type = 'system.scoutingoidc';
+            $extResponse->error_message = Text::_('PLG_SYSTEM_SCOUTINGOIDC_EMAIL_NOT_VERIFIED');
+
+            if ($response !== $extResponse) {
+                // @phpstan-ignore assign.propertyType
+                $response->status = $extResponse->status;
+                $response->type = $extResponse->type;
+                $response->error_message = $extResponse->error_message;
+            }
+
+            $event->setArgument('response', $extResponse);
+
+            if ($event instanceof ResultAwareInterface) {
+                $event->addResult(true);
+            } else {
+                $results = $event->getArgument('result', []);
+                $results[] = true;
+                $event->setArgument('result', $results);
+            }
+
+            return;
+        }
+
+        // @phpstan-ignore assign.propertyType
+        $extResponse->status = Authentication::STATUS_SUCCESS;
+        $extResponse->server = $server;
+        $extResponse->type = 'system.scoutingoidc';
+        $extResponse->message = '';
+
+        $extResponse->username = str_replace(
+            ['<', '>', '"', "'", '%', ';', '(', ')', '&', '\\'],
+            '',
+            $username
+        );
+
+        $extResponse->email = str_replace(
+            ['<', '>', '"', "'", '%', ';', '(', ')', '&', '\\'],
+            '',
+            $email
+        );
+
+        $extResponse->fullname = is_string($fullname) ? $fullname : $extResponse->username;
+
+        if ($response !== $extResponse) {
+            // @phpstan-ignore assign.propertyType
+            $response->status = $extResponse->status;
+            $response->type = $extResponse->type;
+            $response->username = $extResponse->username;
+            $response->email = $extResponse->email;
+            $response->fullname = $extResponse->fullname;
+        }
+
+        // De identity bestaat alleen voor een geverifieerde Scouting-flow.
+        $verifiedScouting = $isScoutingServer
+            && ($scoutingStatus ?? null) === 'KNOWN';
+
+        $verifiedIdentity = $verifiedScouting ? $identity : null;
+
+        // Pas bewijs uitgeven wanneer de OIDC-handler succesvol eindigt.
+        $issueScoutingProof = static function () use (
+            $verifiedScouting,
+            $verifiedIdentity,
+            $response,
+            $extResponse,
+            $server
+        ): void {
+            if (!$verifiedScouting) {
+                return;
+            }
+
+            require_once __DIR__ . '/../Service/ScoutingAuthenticationProof.php';
+
+            \Joomla\Plugin\System\Scoutingoidc\Service\ScoutingAuthenticationProof::issue(
+                $response,
+                $extResponse->username,
+                (int) $server->id,
+                $verifiedIdentity['issuer'],
+                $verifiedIdentity['subject'],
+                $verifiedIdentity['member_id']
+            );
+        };
+
+        $event->setArgument('response', $extResponse);
+
+        $groupsClaim = (string) $params->get('groups_claim', '');
+
+        if ($groupsClaim === '') {
+            $issueScoutingProof();
+
+            if ($event instanceof ResultAwareInterface) {
+                $event->addResult(true);
+            } else {
+                $results = $event->getArgument('result', []);
+                $results[] = true;
+                $event->setArgument('result', $results);
+            }
+
+            return;
+        }
+
+        $groupValues = ClaimsResolver::resolve($this->claims, $groupsClaim);
+
+        if (!is_array($groupValues) || empty($groupValues)) {
+            $this->log(
+                $params,
+                'log_groups',
+                'system-scoutingoidc-groups',
+                'Unsuccessful detection of groups for user "' . $extResponse->username . '" on server ' . $server->id,
+                Log::WARNING
+            );
+
+            $issueScoutingProof();
+
+            if ($event instanceof ResultAwareInterface) {
+                $event->addResult(true);
+            } else {
+                $results = $event->getArgument('result', []);
+                $results[] = true;
+                $event->setArgument('result', $results);
+            }
+
+            return;
+        }
+
+        $this->log(
+            $params,
+            'log_groups',
+            'system-scoutingoidc-groups',
+            'Successful detection of groups for user "' . $extResponse->username . '" on server ' . $server->id,
+            Log::INFO
+        );
+
+        $extResponse->groups = [];
+
+        foreach ($groupValues as $groupValue) {
+            if (!is_scalar($groupValue)) {
+                continue;
+            }
+
+            $group = (string) $groupValue;
+
+            if ($group === '') {
+                continue;
+            }
+
+            if (is_numeric($group) && $params->get('group_integer', 0)) {
+                $this->log(
+                    $params,
+                    'log_groups',
+                    'system-scoutingoidc-groups',
+                    'Found integer group ' . $group . ' of groups for user "' . $extResponse->username . '" on server ' . $server->id,
+                    Log::INFO
+                );
+
+                $dbo = Factory::getContainer()->get(DatabaseInterface::class);
+                $query = $dbo->getQuery(true);
+                $query->select('id')
+                    ->from('#__usergroups')
+                    ->where('id = ' . (int) $group);
+                $dbo->setQuery($query);
+
+                if ($dbo->loadResult()) {
+                    $this->log(
+                        $params,
+                        'log_groups',
+                        'system-scoutingoidc-groups',
+                        'Added integer group ' . $group . ' of groups for user "' . $extResponse->username . '" on server ' . $server->id,
+                        Log::INFO
+                    );
+                    $extResponse->groups[] = $group;
+                }
+
+                continue;
+            }
+
+            $this->log(
+                $params,
+                'log_groups',
+                'system-scoutingoidc-groups',
+                'Found string group(s) "' . $group . '" for user "' . $extResponse->username . '" on server ' . $server->id,
+                Log::INFO
+            );
+
+            $newGroups = (array) ExternalloginHelper::getGroups($group, (string) $params->get('group_separator', ''));
+            $extResponse->groups = array_merge($extResponse->groups, $newGroups);
+
+            $message = empty($newGroups)
+                ? 'No Joomla! groups found from "' . $group . '" on server ' . $server->id
+                : 'Added groups (' . implode(',', $newGroups) . ') for user "' . $extResponse->username . '" on server ' . $server->id;
+            $this->log($params, 'log_groups', 'system-scoutingoidc-groups', $message, Log::INFO);
+        }
+
+        $event->setArgument('response', $extResponse);
+
+        $issueScoutingProof();
+
+        if ($event instanceof ResultAwareInterface) {
+            $event->addResult(true);
+        } else {
+            $results = $event->getArgument('result', []);
+            $results[] = true;
+            $event->setArgument('result', $results);
+        }
+    }
+
+    /**
+     * User logout event.
+     *
+     * Captures the externallogin server and retained id_token for the user being logged out,
+     * while the session (and thus the id_token stored in it) is still intact — Joomla's own
+     * onUserLogout listener destroys the session immediately after this event, before
+     * onUserAfterLogout fires.
+     *
+     * @param array{id: int, username: string} $user
+     * @param array<string, mixed> $options
+     *
+     * @return bool
+     */
+    public function onUserLogout($user, $options = [])
+    {
+        /** @var CMSApplication */
+        $app = Factory::getApplication();
+        $db = Factory::getContainer()->get(DatabaseInterface::class);
+        $query = $db->getQuery(true);
+        $query->select('a.*')
+            ->from('#__externallogin_servers AS a')
+            ->leftJoin('#__externallogin_users AS e ON e.server_id = a.id')
+            ->where('a.plugin = ' . $db->quote('system.scoutingoidc'))
+            ->where('e.user_id = ' . (int) $user['id']);
+        $db->setQuery($query);
+        $server = $db->loadObject();
+
+        if (is_null($server)) {
+            return true;
+        }
+
+        $params = new Registry($server->params);
+
+        if (!boolval($params->get('autologout'))) {
+            return true;
+        }
+
+        $idToken = $app->getUserState('system.scoutingoidc.idtoken.' . $server->id);
+
+        if (!is_string($idToken) || $idToken === '') {
+            return true;
+        }
+
+        $this->logoutServer = $server;
+        $this->logoutIdToken = $idToken;
+
+        return true;
+    }
+
+    /**
+     * Redirect to the OIDC end_session_endpoint (RP-Initiated Logout) when a user logs out.
+     *
+     * Degrades to a local-only Joomla logout — never a hard failure — when autologout is off,
+     * no id_token was captured, or the IdP's discovery document has no end_session_endpoint.
+     */
+    public function onUserAfterLogout($options)
+    {
+        /** @var CMSApplication */
+        $app = Factory::getApplication();
+        $local = $app->getInput()->get('local');
+
+        if (isset($local) || $this->logoutServer === null || $this->logoutIdToken === null) {
+            return true;
+        }
+
+        $server = $this->logoutServer;
+        $params = new Registry($server->params);
+
+        $this->log(
+            $params,
+            'log_logout',
+            'system-scoutingoidc-logout',
+            'Logout of user "' . $options['username'] . '" on server ' . $server->id,
+            Log::INFO
+        );
+
+        // A null discovery document means the fetch itself failed; getDiscoveryDocument() has
+        // already logged that unconditionally, so don't log a second, misleading message here.
+        $discovery = $this->getDiscoveryDocument($params, $server->id);
+
+        if ($discovery === null) {
+            return true;
+        }
+
+        if (empty($discovery['end_session_endpoint'])) {
+            $this->log(
+                $params,
+                'log_logout',
+                'system-scoutingoidc-logout',
+                'No end_session_endpoint in discovery document on server ' . $server->id . ', falling back to local-only logout',
+                Log::WARNING
+            );
+
+            return true;
+        }
+
+        $query = [
+            'id_token_hint' => $this->logoutIdToken,
+        ];
+
+        $postLogoutRedirect = $params->get('post_logout_redirect');
+
+        if (!empty($postLogoutRedirect)) {
+            $query['post_logout_redirect_uri'] = $postLogoutRedirect;
+        }
+
+        $separator = str_contains((string) $discovery['end_session_endpoint'], '?') ? '&' : '?';
+        $redirect = $discovery['end_session_endpoint'] . $separator . http_build_query($query);
+
+        $app->redirect($redirect, 302);
+
+        return true;
+    }
+
+    /**
+     * Build the IdP authorization URL (Authorization Code + PKCE), storing
+     * state/nonce/verifier/redirect_uri in the session for the return leg.
+     *
+     * @param Registry $params
+     * @param int|string $serverID
+     * @param bool $promptNone when true, set prompt=none for OIDC silent authentication
+     */
+    private function buildAuthorizationUrl($params, $serverID, string $redirectUri, bool $promptNone = false): ?string
+    {
+        $discovery = $this->getDiscoveryDocument($params, $serverID);
+
+        if ($discovery === null || empty($discovery['authorization_endpoint'])) {
+            return null;
+        }
+
+        $state = bin2hex(random_bytes(16));
+        $nonce = bin2hex(random_bytes(16));
+        $verifier = $this->base64UrlEncode(random_bytes(32));
+        $challenge = $this->base64UrlEncode(hash('sha256', $verifier, true));
+
+        /** @var CMSApplication */
+        $app = Factory::getApplication();
+        $app->setUserState('system.scoutingoidc.state.' . $serverID, $state);
+        $app->setUserState('system.scoutingoidc.nonce.' . $serverID, $nonce);
+        $app->setUserState('system.scoutingoidc.verifier.' . $serverID, $verifier);
+        $app->setUserState('system.scoutingoidc.redirect.' . $serverID, $redirectUri);
+        $this->log(
+    $params,
+    'log_login',
+    'system-scoutingoidc-login',
+    'Authorization redirect URI: ' . $redirectUri,
+    Log::INFO
+);
+        $query = [
+            'response_type' => 'code',
+            'client_id' => (string) $params->get('client_id'),
+            'redirect_uri' => $redirectUri,
+            'scope' => 'openid email membership profile roles',
+            'state' => $state,
+            'nonce' => $nonce,
+            'code_challenge' => $challenge,
+            'code_challenge_method' => 'S256',
+        ];
+
+        if ($promptNone) {
+            $query['prompt'] = 'none';
+        }
+
+        if ($params->get('locale')) {
+            [$locale] = explode('-', Factory::getApplication()->getLanguage()->getTag());
+            $query['ui_locales'] = $locale;
+        }
+
+        $separator = str_contains((string) $discovery['authorization_endpoint'], '?') ? '&' : '?';
+
+        return $discovery['authorization_endpoint'] . $separator . http_build_query($query);
+    }
+
+    /**
+     * Lightweight reachability probe for an OIDC IdP: GET the discovery
+     * document at <issuer>/.well-known/openid-configuration.
+     * On success, warms the discovery cache so the following
+     * buildAuthorizationUrl() call does not re-fetch the same document.
+     *
+     * @param Registry $params
+     */
+    private function verifyServerIsAlive($params): bool
+    {
+        $issuer = rtrim((string) $params->get('issuer'), '/');
+
+        if ($issuer === '') {
+            return false;
+        }
+
+        try {
+            $http = (new HttpFactory())->getHttp();
+            $timeout = (int) $params->get('timeout', 5);
+            $response = $http->get($issuer . '/.well-known/openid-configuration', [], $timeout);
+
+            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 400) {
+                return false;
+            }
+
+            $document = json_decode((string) $response->getBody(), true);
+
+            if (
+                is_array($document)
+                && !empty($document['authorization_endpoint'])
+                && !empty($document['token_endpoint'])
+                && !empty($document['jwks_uri'])
+            ) {
+                $cache = $this->getCacheController();
+                $cache->cache->store(json_encode($document), 'discovery.' . md5($issuer));
+            }
+
+            return true;
+        } catch (Throwable $e) {
+            $this->log(
+                $params,
+                'log_verify',
+                'system-scoutingoidc-verify',
+                'HTTP error while verifying server is alive: ' . $e->getMessage(),
+                Log::WARNING
+            );
+
+            return false;
+        }
+    }
+
+    /**
+     * Fetch (and cache) the OIDC discovery document for a server's issuer.
+     *
+     * @param Registry $params
+     * @param int|string $serverID
+     *
+     * @return array<string, mixed>|null
+     */
+    private function getDiscoveryDocument($params, $serverID): ?array
+    {
+        $issuer = rtrim((string) $params->get('issuer'), '/');
+        $cache = $this->getCacheController();
+        $id = 'discovery.' . md5($issuer);
+
+        $cached = $cache->cache->get($id);
+
+        if ($cached !== false) {
+            $document = json_decode((string) $cached, true);
+
+            if (is_array($document)) {
+                return $document;
+            }
+        }
+
+        try {
+            $http = (new HttpFactory())->getHttp();
+            $timeout = (int) $params->get('timeout', 5);
+            $response = $http->get($issuer . '/.well-known/openid-configuration', [], $timeout);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new RuntimeException('Unexpected HTTP status ' . $response->getStatusCode());
+            }
+
+            $document = json_decode((string) $response->getBody(), true);
+
+            if (
+                !is_array($document)
+                || empty($document['authorization_endpoint'])
+                || empty($document['token_endpoint'])
+                || empty($document['jwks_uri'])
+            ) {
+                throw new RuntimeException('Malformed discovery document');
+            }
+        } catch (Throwable $e) {
+            // Unconditional: no usable cache and the live fetch failed, so login is about to hard-fail —
+            // this must always be visible, regardless of the log_discovery toggle.
+            Log::add(
+                new ExternalloginLogEntry(
+                    'Unable to fetch discovery document on server ' . $serverID . ': ' . $e->getMessage(),
+                    Log::ERROR,
+                    'system-scoutingoidc-discovery'
+                )
+            );
+
+            return null;
+        }
+
+        $this->log($params, 'log_discovery', 'system-scoutingoidc-discovery', 'Successful discovery on server ' . $serverID, Log::INFO);
+        $cache->cache->store(json_encode($document), $id);
+
+        return $document;
+    }
+
+    /**
+     * Fetch (and cache) the IdP's JWKS document.
+     *
+     * @param Registry $params
+     * @param int|string $serverID
+     *
+     * @return array<string, mixed>|null
+     */
+    private function getJwks($params, string $jwksUri, $serverID, bool $forceRefresh = false): ?array
+    {
+        $cache = $this->getCacheController();
+        $id = 'jwks.' . md5($jwksUri);
+
+        if (!$forceRefresh) {
+            $cached = $cache->cache->get($id);
+
+            if ($cached !== false) {
+                $jwks = json_decode((string) $cached, true);
+
+                if (is_array($jwks)) {
+                    return $jwks;
+                }
+            }
+        }
+
+        try {
+            $http = (new HttpFactory())->getHttp();
+            $timeout = (int) $params->get('timeout', 5);
+            $response = $http->get($jwksUri, [], $timeout);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new RuntimeException('Unexpected HTTP status ' . $response->getStatusCode());
+            }
+
+            $jwks = json_decode((string) $response->getBody(), true);
+
+            if (!is_array($jwks) || empty($jwks['keys'])) {
+                throw new RuntimeException('Malformed JWKS document');
+            }
+        } catch (Throwable $e) {
+            // Unconditional: no usable cache and the live fetch failed, so login is about to hard-fail —
+            // this must always be visible, regardless of the log_verify toggle.
+            Log::add(
+                new ExternalloginLogEntry(
+                    'Unable to fetch JWKS on server ' . $serverID . ': ' . $e->getMessage(),
+                    Log::ERROR,
+                    'system-scoutingoidc-verify'
+                )
+            );
+
+            return null;
+        }
+
+        $cache->cache->store(json_encode($jwks), $id);
+
+        return $jwks;
+    }
+
+    /**
+     * Verify an ID Token's signature and standard claims against the IdP's
+     * JWKS, refetching the JWKS once if the token's "kid" isn't cached yet
+     * (accommodates routine IdP key rotation).
+     *
+     * @param Registry $params
+     * @param array<string, mixed> $discovery
+     * @param int|string $serverID
+     *
+     * @return array<string, mixed>|null
+     */
+    private function verifyIdToken($params, array $discovery, string $idToken, ?string $nonce, $serverID): ?array
+    {
+        try {
+            $token = (new Parser(new JoseEncoder()))->parse($idToken);
+        } catch (Throwable $e) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'Malformed ID token on server ' . $serverID . ': ' . $e->getMessage(), Log::ERROR);
+
+            return null;
+        }
+
+        if (!$token instanceof UnencryptedToken) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'Unsupported ID token type on server ' . $serverID, Log::ERROR);
+
+            return null;
+        }
+
+        $kid = $token->headers()->get('kid');
+        $kid = is_string($kid) ? $kid : null;
+        $jwksUri = (string) $discovery['jwks_uri'];
+
+        $jwks = $this->getJwks($params, $jwksUri, $serverID);
+
+        if ($jwks === null) {
+            return null;
+        }
+
+        $jwk = JwkConverter::find($jwks, $kid);
+
+        if ($jwk === null) {
+            // The key might be missing because the IdP just rotated its signing keys; refetch once.
+            $jwks = $this->getJwks($params, $jwksUri, $serverID, true);
+
+            if ($jwks === null) {
+                return null;
+            }
+
+            $jwk = JwkConverter::find($jwks, $kid);
+        }
+
+        if ($jwk === null) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'No matching JWKS key "' . $kid . '" on server ' . $serverID, Log::ERROR);
+
+            return null;
+        }
+
+        $key = JwkConverter::toKey($jwk);
+        $signer = $this->getSigner((string) $token->headers()->get('alg'));
+
+        if ($key === null || $signer === null) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'Unsupported JWKS key or signing algorithm on server ' . $serverID, Log::ERROR);
+
+            return null;
+        }
+
+        $isValid = (new Validator())->validate(
+            $token,
+            new SignedWith($signer, $key),
+            new IssuedBy((string) $discovery['issuer']),
+            new PermittedFor((string) $params->get('client_id')),
+            new LooseValidAt(SystemClock::fromUTC())
+        );
+
+        if (!$isValid) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'ID token failed validation on server ' . $serverID, Log::ERROR);
+
+            return null;
+        }
+
+        $claims = $token->claims()->all();
+
+        if ($nonce !== null && $nonce !== '' && ($claims['nonce'] ?? null) !== $nonce) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'ID token nonce mismatch on server ' . $serverID, Log::ERROR);
+
+            return null;
+        }
+
+        $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'Successful ID token verification on server ' . $serverID, Log::INFO);
+
+        return $claims;
+    }
+
+    /**
+     * Exchange an authorization code for tokens.
+     *
+     * @param Registry $params
+     * @param array<string, mixed> $discovery
+     * @param int|string $serverID
+     *
+     * @return array<string, mixed>|null
+     */
+    private function exchangeCode($params, array $discovery, string $code, ?string $verifier, string $redirectUri, $serverID): ?array
+    {
+        try {
+            $http = (new HttpFactory())->getHttp();
+            $timeout = (int) $params->get('timeout', 5);
+
+  /**          $data = [
+     *           'grant_type' => 'authorization_code',
+      *          'code' => $code,
+       *         'redirect_uri' => $redirectUri,
+        *        'client_id' => (string) $params->get('client_id'),
+         *       'client_secret' => (string) $params->get('client_secret'),
+          *  ];
+*/
+
+$this->log(
+    $params,
+    'log_login',
+    'system-scoutingoidc-login',
+    'Token redirect URI: ' . $redirectUri,
+    Log::INFO
+);
+
+// Same token request fields as the official Scouting WordPress plugin.
+$data = [
+    'grant_type'    => 'authorization_code',
+    'client_id'     => (string) $params->get('client_id'),
+    'client_secret' => (string) $params->get('client_secret'),
+    'redirect_uri'  => $redirectUri,
+    'code'          => $code,
+    'code_verifier' => $verifier ?? '',
+];
+
+// Explicitly encode as application/x-www-form-urlencoded.
+$body = http_build_query($data, '', '&', PHP_QUERY_RFC1738);
+
+$response = $http->post(
+    (string) $discovery['token_endpoint'],
+    $body,
+    [
+        'Content-Type' => 'application/x-www-form-urlencoded',
+    ],
+    $timeout
+);
+
+/*$data = [
+    'grant_type' => 'authorization_code',
+    'code' => $code,
+    'redirect_uri' => $redirectUri,
+];
+
+if (!empty($verifier)) {
+    $data['code_verifier'] = $verifier;
+}
+
+$clientId = (string) $params->get('client_id');
+$clientSecret = (string) $params->get('client_secret');
+
+$basicCredentials = rawurlencode($clientId) . ':' . rawurlencode($clientSecret);
+
+$response = $http->post(
+    (string) $discovery['token_endpoint'],
+    http_build_query($data, '', '&', PHP_QUERY_RFC3986),
+    [
+        'Content-Type' => 'application/x-www-form-urlencoded',
+        'Authorization' => 'Basic ' . base64_encode($basicCredentials),
+    ],
+    $timeout
+);            
+*/
+
+
+
+/*$response = $http->post(
+                (string) $discovery['token_endpoint'],
+                $data,
+                ['Content-Type' => 'application/x-www-form-urlencoded'],
+                $timeout
+            );
+
+           /** if ($response->getStatusCode() !== 200) {
+             *   throw new RuntimeException('Unexpected HTTP status ' . $response->getStatusCode());
+             * }
+             */
+              
+             if ($response->getStatusCode() !== 200) {
+    $errorBody = json_decode((string) $response->getBody(), true);
+
+    $oauthError = is_array($errorBody)
+        ? ($errorBody['error'] ?? 'unknown')
+        : 'unknown';
+
+    $allowedErrors = [
+        'invalid_client',
+        'invalid_grant',
+        'invalid_request',
+        'unauthorized_client',
+        'unsupported_grant_type',
+    ];
+
+    $oauthError = is_string($oauthError) && in_array($oauthError, $allowedErrors, true)
+        ? $oauthError
+        : 'unknown';
+
+    throw new RuntimeException(
+        'Unexpected HTTP status ' . $response->getStatusCode()
+        . ' (OAuth error: ' . $oauthError . ')'
+    );
+}
+
+            $tokens = json_decode((string) $response->getBody(), true);
+
+            if (!is_array($tokens) || empty($tokens['id_token'])) {
+                throw new RuntimeException('Malformed token response');
+            }
+        } catch (Throwable $e) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'Token exchange failed on server ' . $serverID . ': ' . $e->getMessage(), Log::WARNING);
+
+            return null;
+        }
+
+        $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'Successful token exchange on server ' . $serverID, Log::INFO);
+
+        return $tokens;
+    }
+
+    /**
+     * Call the UserInfo endpoint.
+     *
+     * @param Registry $params
+     * @param array<string, mixed> $discovery
+     * @param int|string $serverID
+     *
+     * @return array<string, mixed>|null
+     */
+    private function fetchUserInfo($params, array $discovery, string $accessToken, $serverID): ?array
+    {
+        if (empty($discovery['userinfo_endpoint']) || $accessToken === '') {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'No UserInfo endpoint or access token on server ' . $serverID, Log::ERROR);
+
+            return null;
+        }
+
+        try {
+            $http = (new HttpFactory())->getHttp();
+            $timeout = (int) $params->get('timeout', 5);
+            $response = $http->get(
+                (string) $discovery['userinfo_endpoint'],
+                ['Authorization' => 'Bearer ' . $accessToken],
+                $timeout
+            );
+
+            if ($response->getStatusCode() !== 200) {
+                throw new RuntimeException('Unexpected HTTP status ' . $response->getStatusCode());
+            }
+
+            $claims = json_decode((string) $response->getBody(), true);
+
+            if (!is_array($claims) || empty($claims['sub'])) {
+                throw new RuntimeException('Malformed UserInfo response');
+            }
+        } catch (Throwable $e) {
+            $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'UserInfo request failed on server ' . $serverID . ': ' . $e->getMessage(), Log::WARNING);
+
+            return null;
+        }
+
+        $this->log($params, 'log_verify', 'system-scoutingoidc-verify', 'Successful UserInfo request on server ' . $serverID, Log::INFO);
+
+        return $claims;
+    }
+
+    /**
+     * Get a cache controller for discovery/JWKS caching, TTL taken from
+     * Joomla's global "cachetime" configuration.
+     */
+    private function getCacheController(): CacheController
+    {
+        /** @var CacheControllerFactoryInterface $factory */
+        $factory = Factory::getContainer()->get(CacheControllerFactoryInterface::class);
+
+        return $factory->createCacheController('callback', [
+            'defaultgroup' => 'plg_system_scoutingoidc',
+            'caching' => true,
+        ]);
+    }
+
+    /**
+     * Resolve the Lcobucci\JWT signer for a JWS "alg" header value.
+     */
+    private function getSigner(string $alg): ?Signer
+    {
+        return match ($alg) {
+            'RS256' => new Sha256(),
+            'RS384' => new Sha384(),
+            'RS512' => new Sha512(),
+            default => null,
+        };
+    }
+
+    /**
+     * Log a message when the given server parameter toggle is enabled
+     * (per-server log_* flags such as log_autologin, log_login, …).
+     *
+     * @param Registry $params
+     */
+    private function log($params, string $toggle, string $category, string $message, int $priority): void
+    {
+        if ($params->get($toggle, 0)) {
+            Log::add(new ExternalloginLogEntry($message, $priority, $category));
+        }
+    }
+
+    /**
+     * JSON-encode claims for debugging logs, redacting credential-shaped keys if present.
+     * Public for unit tests — not an extension API.
+     *
+     * @param array<string, mixed> $claims
+     *
+     * @since 5.2.0
+     */
+    public static function formatClaimsForLog(array $claims): string
+    {
+        $encoded = json_encode(
+            self::redactSensitiveClaimKeys($claims),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR
+        );
+
+        return is_string($encoded) ? $encoded : '{}';
+    }
+
+    private static function redactSensitiveClaimKeys(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $redacted = [];
+
+        foreach ($value as $key => $child) {
+            if (is_string($key) && self::isSensitiveClaimKey($key)) {
+                $redacted[$key] = '[redacted]';
+                continue;
+            }
+
+            $redacted[$key] = self::redactSensitiveClaimKeys($child);
+        }
+
+        return $redacted;
+    }
+
+    private static function isSensitiveClaimKey(string $key): bool
+    {
+        $normalized = strtolower($key);
+
+        return in_array($normalized, [
+            'access_token',
+            'refresh_token',
+            'id_token',
+            'client_secret',
+            'code_verifier',
+            'authorization',
+        ], true);
+    }
+
+    private function base64UrlEncode(string $data): string
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+}

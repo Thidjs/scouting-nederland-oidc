@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<extension version="5" type="plugin" group="system" method="upgrade">
+    <name>Scouting Nederland OIDC</name>
+    <creationDate>28-10-2026</creationDate>
+    <author>Thijs van Ree</author>
+    <authorUrl>https://github.com/akunzai/joomla-external-login</authorUrl>
+    <license>GNU General Public License version 2 or later; see LICENSE</license>
+    <version>1.0.0</version>
+    <description>Scouting Nederland OIDC-integratie. Gebaseerd op External Login OIDC 5.2.0 van de oorspronkelijke ontwikkelaars; onderdeel van Scouting Nederland OIDC 1.0.0.</description>
+    <namespace path="src">Joomla\Plugin\System\Scoutingoidc</namespace>
+    <files>
+        <folder plugin="scoutingoidc">services</folder>
+        <folder>src</folder>
+        <folder>forms</folder>
+        <folder>sql</folder>
+        <folder>language</folder>
+        <filename>LICENSE</filename>
+        <filename>NOTICE.md</filename>
+    </files>
+    <install>
+        <sql>
+            <file driver="mysql" charset="utf8">sql/install.mysql.utf8.sql</file>
+        </sql>
+    </install>
+    <update>
+        <schemas>
+            <schemapath type="mysql">sql/updates/mysql</schemapath>
+        </schemas>
+    </update>
+</extension>

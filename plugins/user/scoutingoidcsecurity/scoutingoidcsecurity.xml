@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<extension type="plugin" group="user" method="upgrade">
+    <name>Scouting Nederland OIDC - Accountbeveiliging</name>
+    <license>GNU General Public License version 2 or later</license>
+    <author>Thijs van Ree</author>
+    <creationDate>28-10-2026</creationDate>
+    <version>1.0.0</version>
+    <description>Beveiligt Scouting Nederland OIDC-accounts tegen alternatieve authenticatie en lokale wachtwoordwijzigingen.</description>
+    <namespace path="src">Joomla\Plugin\User\Scoutingoidcsecurity</namespace>
+    <files>
+        <folder plugin="scoutingoidcsecurity">services</folder>
+        <folder>src</folder>
+        <folder>language</folder>
+        <filename>LICENSE</filename>
+        <filename>NOTICE.md</filename>
+    </files>
+</extension>

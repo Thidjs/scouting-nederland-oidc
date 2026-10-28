@@ -1,0 +1,20 @@
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+# Local config and secrets
+.env
+.env.*
+!.env.example
+configuration.php
+*.key
+*.pem
+*.p12
+*.pfx
+# Generated/runtime
+__pycache__/
+*.pyc
+*.log
+# Rebuilt distribution (original v1.0.0 ZIP remains tracked)
+dist/pkg_scoutingoidc-build.zip

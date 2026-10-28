@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="package" version="5.4" method="upgrade">
+    <name>Scouting Nederland OIDC</name>
+    <packagename>scoutingoidc</packagename>
+    <version>1.0.0</version>
+    <creationDate>28-10-2026</creationDate>
+    <author>Thijs van Ree</author>
+    <packager>Thijs van Ree</packager>
+    <license>GNU General Public License version 2 or later</license>
+    <description>Scouting Nederland OIDC-integratie voor Joomla 5, inclusief identiteitskoppeling, registratie en accountbeveiliging.</description>
+    <blockChildUninstall>true</blockChildUninstall>
+    <files folder="packages">
+        <file type="plugin" id="scoutingoidc" group="system">plg_system_scoutingoidc.zip</file>
+        <file type="plugin" id="scoutingoidcsecurity" group="user">plg_user_scoutingoidcsecurity.zip</file>
+    </files>
+    <scriptfile>pkg_script.php</scriptfile>
+</extension>
