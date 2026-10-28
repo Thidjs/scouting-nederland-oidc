@@ -1,0 +1,115 @@
+name: Validate and publish Joomla package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: none
+          coverage: none
+      - name: Lint PHP source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d plugins && test -f pkg_script.php
+          find plugins -type f -name '*.php' -print0 | xargs -0 -r -n 1 php -l
+          php -l pkg_script.php
+      - name: Validate manifests and tag version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          paths = [
+              'pkg_scoutingoidc.xml',
+              'plugins/system/scoutingoidc/scoutingoidc.xml',
+              'plugins/user/scoutingoidcsecurity/scoutingoidcsecurity.xml',
+          ]
+          versions = []
+          for path in paths:
+              root = ET.parse(path).getroot()
+              version = root.findtext('version')
+              if not version:
+                  raise SystemExit(f'Missing version: {path}')
+              versions.append(version)
+          if len(set(versions)) != 1:
+              raise SystemExit(f'Inconsistent versions: {dict(zip(paths, versions))}')
+          tag = os.environ.get('GITHUB_REF', '')
+          if tag.startswith('refs/tags/') and tag.removeprefix('refs/tags/') != 'v' + versions[0]:
+              raise SystemExit('Git tag does not match package version')
+          print('Validated Joomla versions:', versions[0])
+          PY
+      - name: Build Joomla package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/build.py
+          test -s dist/pkg_scoutingoidc-build.zip
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          path = 'dist/pkg_scoutingoidc-build.zip'
+          expected = {'pkg_scoutingoidc.xml', 'pkg_script.php',
+                      'packages/plg_system_scoutingoidc.zip',
+                      'packages/plg_user_scoutingoidcsecurity.zip'}
+          with ZipFile(path) as z:
+              names = set(z.namelist())
+              assert expected <= names, sorted(expected - names)
+              assert z.testzip() is None, 'Corrupt outer package'
+              import io
+              for n in sorted(expected):
+                  if n.endswith('.zip'):
+                      with ZipFile(io.BytesIO(z.read(n))) as inner:
+                          assert inner.testzip() is None, f'Corrupt inner package: {n}'
+                          assert any(x.endswith('.xml') for x in inner.namelist())
+          print('Package archives validated')
+          PY
+      - name: Package release filename
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          cp dist/pkg_scoutingoidc-build.zip "dist/pkg_scoutingoidc-${version}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: joomla-package
+          path: dist/pkg_scoutingoidc-build.zip
+          if-no-files-found: error
+
+  publish-release:
+    needs: validate-and-build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: joomla-package
+          path: dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          mv dist/pkg_scoutingoidc-build.zip "dist/pkg_scoutingoidc-${version}.zip"
+          gh release create "${tag}" "dist/pkg_scoutingoidc-${version}.zip"             --repo "${GITHUB_REPOSITORY}"             --verify-tag             --title "Scouting Nederland OIDC ${tag}"             --generate-notes
