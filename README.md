@@ -15,9 +15,9 @@ Joomla 5-integratie om gebruikers te laten inloggen via de OpenID Connect-dienst
 1. Installeer External Login 5.2.0 in Joomla.
 2. Download `pkg_scoutingoidc-1.0.0.zip` uit de GitHub-release (of `dist/`).
 3. Installeer de ZIP via **Systeem → Installeren → Extensies**.
-4. Maak in **External Login → Servers** een **nieuwe** server aan met de provider **Scouting Nederland OIDC**.
-5. Configureer de Scouting Nederland OIDC-server zoals hieronder beschreven; gebruik de installatiehandleiding in `docs/` voor de schermafbeeldingen en uitgebreide toelichting.
-6. Activeer zowel **Scouting Nederland OIDC** (system) als **Scouting Nederland OIDC – Accountbeveiliging** (user), en zorg dat de benodigde External Login-plugins ingeschakeld zijn.
+4. **Activeer eerst de benodigde plugins** via **Systeem → Plugins**: **Scouting Nederland OIDC** (`system/scoutingoidc`), **Scouting Nederland OIDC – Accountbeveiliging** (`user/scoutingoidcsecurity`), **System – External Login** en **Authentication – External Login**. Zonder de geactiveerde Scouting-systeemplugin is de provider niet beschikbaar bij het aanmaken van een External Login-server.
+5. Maak daarna in **External Login → Servers** een **nieuwe** server aan met de provider **Scouting Nederland OIDC**.
+6. Configureer de Scouting Nederland OIDC-server zoals hieronder beschreven; gebruik de installatiehandleiding in `docs/` voor de schermafbeeldingen en uitgebreide toelichting.
 7. Maak/publiceer een **External Login**-sitemodule en kies bij **Geavanceerd → Weergave** de layout **`default`**. In de geteste omgeving bleef de layout **`alone`** de tekst *Inloggen* tonen terwijl de Joomla-gebruiker al correct was aangemeld.
 8. Test met een Scouting-account zonder bestaand lokaal Joomla-account met hetzelfde e-mailadres, controleer de automatische gebruikersaanmaak en beide koppelingen, meld je opnieuw aan en test ook uitloggen. Behoud een afzonderlijke Joomla-beheerderslogin.
 
