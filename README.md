@@ -48,7 +48,11 @@ Maak een **nieuwe** External Login-server aan met provider `Scouting Nederland O
 
 Registreer voor iedere Joomla-website een eigen OIDC-client en voeg de exacte redirect-URI('s) en post-logout redirect-URI toe. De geteste aanvraag bevatte scopes voor e-mail, persoonlijke gegevens, lidmaatschap en rollen. Leg eerst vast welke gegevens de website werkelijk nodig heeft; vraag geen overbodige scopes aan.
 
-**Publieke client / PKCE:** de verzamelde screenshots tonen een publieke OpenID Connect-client waarbij PKCE verplicht is. Houd de registratie-instellingen consistent met wat de provider en **de geïnstalleerde pluginversie daadwerkelijk ondersteunen**; dit README bevestigt nog niet dat alle publieke-client-/PKCE-varianten zijn getest. Het `client_secret`-veld en de tokenuitwisseling verdienen aparte verificatie voordat dit veld in een volgende release optioneel of uitgeschakeld wordt gemaakt.
+**Verplichte clientinstellingen bij Scouting Nederland (geteste werkende configuratie):** zet bij de OIDC-clientregistratie **beide vinkjes aan: `Publiek` én `PKCE`**. Alleen `PKCE` aanzetten werkte tijdens onze tests niet. Beide vinkjes ingeschakeld is de enige door ons bevestigde werkende combinatie voor v1.0.0.
+
+**Let op bij opslaan:** wanneer je `Publiek` aanvinkt en direct opslaat, kan Scouting Nederland melden dat PKCE ingeschakeld moet worden. Vink dan **PKCE opnieuw aan terwijl `Publiek` aangevinkt blijft** en sla opnieuw op. Controleer vervolgens dat **beide vinkjes actief zijn**. Dit is het daadwerkelijk geteste opslagverloop, geen alternatieve instelling.
+
+Het gedrag van het Joomla-veld `client_secret` en de tokenuitwisseling blijft een apart aandachtspunt voor een toekomstige versie; verander deze logica niet zonder tests.
 
 ### Functionele test (29 oktober 2026)
 
