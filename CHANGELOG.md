@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2] - 2026-10-30 (gepland)
+
+- Joomla package-update-server geregistreerd; toekomstige releases kunnen via de Joomla Extensie-updater worden aangeboden.
+- Updatefeed wordt bij GitHub Releases gegenereerd en via GitHub Pages gepubliceerd, inclusief download-URL en SHA-256.
+- Releasedatum in pakket- en pluginmanifesten geactualiseerd; CI controleert consistentie en bij tags de UTC-releasedatum.
+- Let op: bestaande v1.0.1-installaties hebben nog geen update-serverregistratie en moeten eenmalig handmatig naar v1.0.2 worden bijgewerkt.
+- Publicatie en end-to-end updateherkenning in Joomla moeten nog worden getest.
+
 ## [1.0.1] - 2026-10-30
 
 - Veilige standaardwaarden voor nieuwe Scouting OIDC-servers.
