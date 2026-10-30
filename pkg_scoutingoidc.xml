@@ -14,4 +14,7 @@
         <file type="plugin" id="scoutingoidcsecurity" group="user">plg_user_scoutingoidcsecurity.zip</file>
     </files>
     <scriptfile>pkg_script.php</scriptfile>
+    <updateservers>
+        <server type="extension" priority="1" name="Scouting Nederland OIDC Updates">https://thidjs.github.io/scouting-nederland-oidc/updates/scoutingoidc.xml</server>
+    </updateservers>
 </extension>
