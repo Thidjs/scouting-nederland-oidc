@@ -191,6 +191,42 @@ class Scoutingoidc extends CMSPlugin
     }
 
     /**
+     * Reject unsafe automatic account changes for newly created Scouting servers.
+     * Existing servers and other External Login providers are left unchanged.
+     */
+    public function onContentBeforeSave(\Joomla\CMS\Event\Model\BeforeSaveEvent $event): void
+    {
+        if ($event->getArgument('context') !== 'com_externallogin.server'
+            || !$event->getArgument('isNew')) {
+            return;
+        }
+
+        $server = $event->getArgument('subject');
+
+        if (!$server || ($server->plugin ?? null) !== 'system.scoutingoidc') {
+            return;
+        }
+
+        $params = $server->params ?? null;
+        if ($params instanceof Registry) {
+            $autoregister = $params->get('autoregister', 0);
+            $autoupdate = $params->get('autoupdate', 0);
+        } elseif (is_array($params)) {
+            $autoregister = $params['autoregister'] ?? 0;
+            $autoupdate = $params['autoupdate'] ?? 0;
+        } else {
+            // Fail closed if the incoming server configuration cannot be inspected.
+            $autoregister = 1;
+            $autoupdate = 1;
+        }
+
+        if ((string) $autoregister !== '0' || (string) $autoupdate !== '0') {
+            $server->setError('Scouting OIDC: automatic registration and automatic updates must both be disabled.');
+            $event->addResult(false);
+        }
+    }
+
+    /**
      * Get Login URL.
      *
      * Redirects to the IdP's discovered authorization_endpoint using
