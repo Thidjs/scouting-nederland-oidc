@@ -29,11 +29,9 @@ Ga hiervoor naar https://login.scouting.nl Let op, dit werkt alleen als je in SO
 3. Installeer de ZIP via **Systeem → Installeren → Extensies**.
 4. **Activeer eerst de benodigde plugins** via **Systeem → Plugins**: **Scouting Nederland OIDC** (`system/scoutingoidc`), **Scouting Nederland OIDC – Accountbeveiliging** (`user/scoutingoidcsecurity`), **System – External Login** en **Authentication – External Login**. Zonder de geactiveerde Scouting-systeemplugin is de provider niet beschikbaar bij het aanmaken van een External Login-server.
 5. Maak daarna in **External Login → Servers** een **nieuwe** server aan met de provider **Scouting Nederland OIDC**.
-6. Configureer de Scouting Nederland OIDC-server zoals hieronder beschreven; gebruik de installatiehandleiding in `docs/` voor de schermafbeeldingen en uitgebreide toelichting.
+6. Configureer de Scouting Nederland OIDC-server, vul bij Client het Client ID in dat je tijdens de registratie bij Scouting Nederland gekregen hebt (zie hierboven)
 7. Maak/publiceer een **External Login**-sitemodule en kies bij **Geavanceerd → Weergave** de layout **`default`**. In de geteste omgeving bleef de layout **`alone`** de tekst *Inloggen* tonen terwijl de Joomla-gebruiker al correct was aangemeld.
 8. Test met een Scouting-account zonder bestaand lokaal Joomla-account met hetzelfde e-mailadres, controleer de automatische gebruikersaanmaak en beide koppelingen, meld je opnieuw aan en test ook uitloggen. Behoud een afzonderlijke Joomla-beheerderslogin.
-
-> Let op: het simpelweg wijzigen van de `plugin`-kolom van een oude External Login-server leverde bij de eerste productiepilot `Plugin disabled` op. Maak daarom een nieuwe server aan in de Joomla-interface.
 
 ## Upgraden van v1.0.0 naar v1.0.1
 
@@ -92,13 +90,12 @@ Op Regio Westelijke Mijnstreek is het Joomla-pakket **v1.0.1** over **v1.0.0** g
 - `plugins/user/scoutingoidcsecurity/`: broncode van de accountbeveiliging
 - `pkg_scoutingoidc.xml` en `pkg_script.php`: Joomla-pakket
 - `dist/`: build-uitvoer; gebruik voor installatie de ZIP uit de betreffende GitHub-release
-- `docs/`: handleidingen voor webmasters en beheerders
+- `docs/`: handleidingen voor webmasters en beheerders (dienen nog geupdate te worden!!)
 
 ## Bekende aandachtspunten
 
 - Sinds de oplossing van [issue #1](https://github.com/Thidjs/scouting-nederland-oidc/issues/1) verwijdert de accountbeveiligingsplugin de bijbehorende Scouting-identiteit uit `#__oidc_identities` na een succesvolle Joomla-gebruikersverwijdering. Oudere, reeds verweesde records worden hiermee niet automatisch gerepareerd; laat bestaande inconsistenties door technisch beheer controleren.
 - Upgraden van een bestaande v1.0.0-installatie is op Regio Westelijke Mijnstreek getest. Handmatig als `root` gewijzigde pluginbestanden kunnen een latere Joomla-upgrade belemmeren; controleer eigenaarschap bij kopieerfouten.
-- Controleer het gebruik van `email_verified` voordat automatische registratie op onbekende accounts wordt toegestaan.
 
 ## Roadmap
 
