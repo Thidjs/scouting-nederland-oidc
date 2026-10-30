@@ -182,6 +182,12 @@ class Scoutingoidc extends CMSPlugin
         $this->loadLanguage();
         Form::addFormPath(dirname(__DIR__, 2) . '/forms');
         $form->loadFile('oidc', false);
+
+        // These defaults apply only when creating a Scouting OIDC server.
+        // Joomla loads persisted params after form preparation for existing servers.
+        $form->setFieldAttribute('usergroup', 'default', '2', 'params');
+        $form->setFieldAttribute('autoregister', 'default', '0', 'params');
+        $form->setFieldAttribute('autoupdate', 'default', '0', 'params');
     }
 
     /**
