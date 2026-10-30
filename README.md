@@ -78,7 +78,7 @@ De schone installatie op **Regio Westelijke Mijnstreek** (Joomla **5.4.10**, Ext
 - Joomla bouwt een geldige frontend-sessie op: de profielpagina is toegankelijk.
 - De **modulelayout `alone`** gaf ten onrechte de indruk dat de login was mislukt; omschakelen naar **`default`** loste de zichtbare begroeting op.
 
-**Bestaand e-mailadres:** is het Scouting-e-mailadres al gekoppeld aan een lokaal Joomla-account, dan weigert de Scouting-registratie bewust een nieuw account aan te maken. Dat voorkomt automatische accountovername op grond van uitsluitend een e-mailadres. De huidige generieke melding is een bekend verbeterpunt ([issue #6](https://github.com/Thidjs/scouting-nederland-oidc/issues/6)). Een beheerder moet een eventuele migratie/koppeling zorgvuldig en gecontroleerd uitvoeren; verwijder geen beheerdersaccounts om een test te laten slagen.
+**Bestaand e-mailadres:** is het Scouting-e-mailadres al gekoppeld aan een lokaal Joomla-account, dan weigert de Scouting-registratie bewust een nieuw account aan te maken. Dat voorkomt automatische accountovername op grond van uitsluitend een e-mailadres. Sinds de oplossing van [issue #6](https://github.com/Thidjs/scouting-nederland-oidc/issues/6) is voor dit conflict een veilige, vertaalbare frontendmelding geïmplementeerd; persoonsgegevens en exceptiondetails horen daarin niet thuis. Een beheerder moet een eventuele migratie/koppeling zorgvuldig en gecontroleerd uitvoeren; verwijder geen beheerdersaccounts om een test te laten slagen.
 
 ### Upgrade- en regressietest (30 oktober 2026)
 
@@ -102,7 +102,9 @@ Op Regio Westelijke Mijnstreek is het Joomla-pakket **v1.0.1** over **v1.0.0** g
 
 **v1.0.1 (uitgebracht):** veilige standaardwaarden en vergrendelde serverinstellingen, optioneel Client Secret bij de geteste publieke PKCE-client en succesvolle upgrade over v1.0.0. Zie [CHANGELOG.md](CHANGELOG.md).
 
-**Open verbeterpunten:** begrijpelijke en veilige frontendmeldingen bij registratieconflicten ([issue #6](https://github.com/Thidjs/scouting-nederland-oidc/issues/6)) en verdere foutdiagnostiek.
+**Afgerond vóór v1.0.1:** veilige, vertaalbare Nederlandstalige en Engelstalige frontendmeldingen bij registratieconflicten ([issue #6](https://github.com/Thidjs/scouting-nederland-oidc/issues/6), [PR #9](https://github.com/Thidjs/scouting-nederland-oidc/pull/9)). Het bestaande-e-mailadresconflict wordt intern herkend als `EXISTING_EMAIL` zonder automatisch op e-mailadres te koppelen. Andere registratieproblemen blijven generiek afgehandeld.
+
+**Toekomstige verbeterpunten:** verdere foutdiagnostiek.
 
 **Toekomstige release:** eigen Joomla-loginmodule in Scouting Nederland-stijl ([issue #7](https://github.com/Thidjs/scouting-nederland-oidc/issues/7)), die de bestaande External Login/OIDC-beveiligingsketen hergebruikt.
 
