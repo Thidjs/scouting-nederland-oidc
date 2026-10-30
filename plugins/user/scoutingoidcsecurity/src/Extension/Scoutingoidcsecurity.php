@@ -6,6 +6,7 @@ defined('_JEXEC') or die;
 
 use Joomla\CMS\Authentication\Authentication;
 use Joomla\CMS\Event\User\AuthorisationEvent;
+use Joomla\CMS\Event\User\AfterDeleteEvent;
 use Joomla\CMS\Event\User\BeforeResetCompleteEvent;
 use Joomla\CMS\Event\User\BeforeResetRequestEvent;
 use Joomla\CMS\Event\User\BeforeSaveEvent;
@@ -32,6 +33,8 @@ final class Scoutingoidcsecurity extends CMSPlugin implements
                 'onUserBeforeResetComplete',
             'onUserBeforeSave' =>
                 'onUserBeforeSave',
+            'onUserAfterDelete' =>
+                'onUserAfterDelete',
         ];
     }
 
@@ -173,6 +176,36 @@ final class Scoutingoidcsecurity extends CMSPlugin implements
             'Gebruik Scouting Nederland om in te loggen.';
 
         $event->addResult($response);
+    }
+
+
+    /**
+     * Remove Scouting identity bindings only after Joomla successfully
+     * deletes the associated account. External Login manages its own links.
+     */
+    public function onUserAfterDelete(AfterDeleteEvent $event): void
+    {
+        if (!$event->getDeletingResult()) {
+            return;
+        }
+
+        $user = $event->getUser();
+        $userId = (int) ($user['id'] ?? 0);
+
+        if ($userId <= 0) {
+            return;
+        }
+
+        $db = $this->getDatabase();
+        $query = $db->getQuery(true)
+            ->delete($db->quoteName('#__oidc_identities'))
+            ->where($db->quoteName('user_id') . ' = ' . $userId)
+            ->where(
+                $db->quoteName('issuer') . ' = '
+                . $db->quote('https://login.scouting.nl')
+            );
+
+        $db->setQuery($query)->execute();
     }
 
     public function onUserBeforeResetRequest(
