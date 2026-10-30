@@ -94,7 +94,7 @@ Op Regio Westelijke Mijnstreek is het Joomla-pakket **v1.0.1** over **v1.0.0** g
 
 ## Bekende aandachtspunten
 
-- Wanneer een gekoppelde Joomla-gebruiker wordt verwijderd, kan een verweesde identiteit achterblijven in `#__oidc_identities`. Dit kan herregistratie blokkeren met `CONFLICT`. Laat dit door technisch beheer controleren; verwijder geen willekeurige koppelingen.
+- Sinds de oplossing van [issue #1](https://github.com/Thidjs/scouting-nederland-oidc/issues/1) verwijdert de accountbeveiligingsplugin de bijbehorende Scouting-identiteit uit `#__oidc_identities` na een succesvolle Joomla-gebruikersverwijdering. Oudere, reeds verweesde records worden hiermee niet automatisch gerepareerd; laat bestaande inconsistenties door technisch beheer controleren.
 - Upgraden van een bestaande v1.0.0-installatie is op Regio Westelijke Mijnstreek getest. Handmatig als `root` gewijzigde pluginbestanden kunnen een latere Joomla-upgrade belemmeren; controleer eigenaarschap bij kopieerfouten.
 - Controleer het gebruik van `email_verified` voordat automatische registratie op onbekende accounts wordt toegestaan.
 
@@ -102,9 +102,11 @@ Op Regio Westelijke Mijnstreek is het Joomla-pakket **v1.0.1** over **v1.0.0** g
 
 **v1.0.1 (uitgebracht):** veilige standaardwaarden en vergrendelde serverinstellingen, optioneel Client Secret bij de geteste publieke PKCE-client en succesvolle upgrade over v1.0.0. Zie [CHANGELOG.md](CHANGELOG.md).
 
-**Afgerond vóór v1.0.1:** veilige, vertaalbare Nederlandstalige en Engelstalige frontendmeldingen bij registratieconflicten ([issue #6](https://github.com/Thidjs/scouting-nederland-oidc/issues/6), [PR #9](https://github.com/Thidjs/scouting-nederland-oidc/pull/9)). Het bestaande-e-mailadresconflict wordt intern herkend als `EXISTING_EMAIL` zonder automatisch op e-mailadres te koppelen. Andere registratieproblemen blijven generiek afgehandeld.
+**Afgerond vóór v1.0.1:** opruimen van Scouting-identiteiten na succesvolle Joomla-gebruikersverwijdering ([issue #1](https://github.com/Thidjs/scouting-nederland-oidc/issues/1), [PR #8](https://github.com/Thidjs/scouting-nederland-oidc/pull/8)); veilige, vertaalbare Nederlandstalige en Engelstalige frontendmeldingen bij registratieconflicten ([issue #6](https://github.com/Thidjs/scouting-nederland-oidc/issues/6), [PR #9](https://github.com/Thidjs/scouting-nederland-oidc/pull/9)). Het bestaande-e-mailadresconflict wordt intern herkend als `EXISTING_EMAIL` zonder automatisch op e-mailadres te koppelen. Andere registratieproblemen blijven generiek afgehandeld.
 
-**Toekomstige verbeterpunten:** verdere foutdiagnostiek.
+**Servermigratie:** [issue #4](https://github.com/Thidjs/scouting-nederland-oidc/issues/4) is administratief afgerond. Een bestaande External Login-server wordt niet automatisch naar de Scouting-provider omgezet; wijzig de `plugin`-kolom niet rechtstreeks in de database. Nieuwe servers via de Joomla-interface zijn de gedocumenteerde route.
+
+**Open verbeterpunten:** volledige integratieverificatie van de Scouting trust policy en `email_verified` ([issue #3](https://github.com/Thidjs/scouting-nederland-oidc/issues/3); documentatie via [PR #10](https://github.com/Thidjs/scouting-nederland-oidc/pull/10)), Joomla Update Manager-integratie ([issue #5](https://github.com/Thidjs/scouting-nederland-oidc/issues/5)) en verdere foutdiagnostiek. De handmatige pakketupgrade via Joomla is wel getest.
 
 **Toekomstige release:** eigen Joomla-loginmodule in Scouting Nederland-stijl ([issue #7](https://github.com/Thidjs/scouting-nederland-oidc/issues/7)), die de bestaande External Login/OIDC-beveiligingsketen hergebruikt.
 
