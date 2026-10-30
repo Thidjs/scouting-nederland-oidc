@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<updates>
+    <update>
+        <name>Scouting Nederland OIDC</name>
+        <description>Scouting Nederland OIDC Joomla package</description>
+        <element>pkg_scoutingoidc</element>
+        <type>package</type>
+        <version>1.0.1</version>
+        <client>administrator</client>
+        <downloads>
+            <downloadurl type="full" format="zip">https://github.com/Thidjs/scouting-nederland-oidc/releases/download/v1.0.1/pkg_scoutingoidc-1.0.1.zip</downloadurl>
+        </downloads>
+        <sha256>8136a36c876aa8eba36ac67c847cb9a66bedd585ee844144791ebbbacaf8d8b8</sha256>
+        <targetplatform name="joomla" version="5\.[0-9]+" />
+        <php_minimum>8.2</php_minimum>
+    </update>
+</updates>
