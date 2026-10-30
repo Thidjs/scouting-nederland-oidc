@@ -188,6 +188,21 @@ class Scoutingoidc extends CMSPlugin
         $form->setFieldAttribute('usergroup', 'default', '2', 'params');
         $form->setFieldAttribute('autoregister', 'default', '0', 'params');
         $form->setFieldAttribute('autoupdate', 'default', '0', 'params');
+
+        // External Login renders a separate top-level "plugin" hidden input from
+        // the empty item on new servers. Its failure redirect relies on this value.
+        // Repair only that field; do not change the OIDC form data or other providers.
+        Factory::getApplication()->getDocument()->getWebAssetManager()->addInlineScript(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('server-form');
+    if (!form) return;
+    const plugin = form.querySelector('input[name="plugin"]');
+    const configured = form.querySelector('input[name="jform[plugin]"]');
+    if (plugin && configured && configured.value === 'system.scoutingoidc' && !plugin.value) {
+        plugin.value = configured.value;
+    }
+});
+JS);
     }
 
     /**
@@ -221,6 +236,12 @@ class Scoutingoidc extends CMSPlugin
         }
 
         if ((string) $autoregister !== '0' || (string) $autoupdate !== '0') {
+            // Preserve the provider identity for External Login's failed-save
+            // redirect even when JavaScript was disabled or the hidden field empty.
+            $input = Factory::getApplication()->getInput();
+            if ($input->get('plugin', '') === '') {
+                $input->set('plugin', 'system.scoutingoidc');
+            }
             $server->setError('Scouting OIDC: automatic registration and automatic updates must both be disabled.');
             $event->addResult(false);
         }
