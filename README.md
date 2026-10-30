@@ -10,6 +10,18 @@ Joomla 5-integratie om gebruikers te laten inloggen via de OpenID Connect-dienst
 - [External Login](https://github.com/akunzai/joomla-external-login) **5.2.0** (exact; wordt gecontroleerd bij installatie)
 - Een OIDC-clientregistratie bij Scouting Nederland
 
+## Registratie bij Scouting Nederland
+
+Registreer voor iedere Joomla-website een eigen OIDC-client en voeg de exacte redirect-URI('s) en post-logout redirect-URI toe. De geteste aanvraag bevatte scopes voor e-mail, persoonlijke gegevens, lidmaatschap en rollen. Leg eerst vast welke gegevens de website werkelijk nodig heeft; vraag geen overbodige scopes aan. Let op, de scopes E-mail, Persoonlijk, Lidmaatschap en Rollen en lidmaatschappen zijn vereist. 
+
+Ga hiervoor naar https://login.scouting.nl Let op, dit werkt alleen als je in SOL3.0 de rol Webmaster hebt voor jouw organisatie.
+
+**Verplichte clientinstellingen bij Scouting Nederland (geteste werkende configuratie):** zet bij de OIDC-clientregistratie **beide vinkjes aan: `Publiek` én `PKCE`**. Alleen `PKCE` aanzetten werkte tijdens onze tests niet. Beide vinkjes ingeschakeld is de door ons bevestigde werkende combinatie voor v1.0.0 en v1.0.1.
+
+**Let op bij opslaan:** wanneer je `Publiek` aanvinkt en direct opslaat, kan Scouting Nederland melden dat PKCE ingeschakeld moet worden. Vink dan **PKCE opnieuw aan terwijl `Publiek` aangevinkt blijft** en sla opnieuw op. Controleer vervolgens dat **beide vinkjes actief zijn**. Dit is het daadwerkelijk geteste opslagverloop, geen alternatieve instelling.
+
+**Client Secret (v1.0.1):** bij de hierboven geteste registratie met **Publiek** en **PKCE** is geen Client Secret nodig. Het veld in Joomla is daarom optioneel en mag leeg blijven. Opslaan en opnieuw inloggen zonder Client Secret zijn op 30 oktober 2026 succesvol getest. Gebruik voor een andere clientconfiguratie alleen instellingen die je zelf hebt gevalideerd.
+
 ## Installeren
 
 1. Installeer External Login 5.2.0 in Joomla.
@@ -56,16 +68,6 @@ Maak een **nieuwe** External Login-server aan met provider `Scouting Nederland O
 | Externe loginmodule, cache | Uitgeschakeld (`cache=0`) in de geteste opstelling |
 
 **Let op:** gebruik **niet** de algemene External Login-autoregistratie als vervanging voor de eigen Scouting-registratieroute. Deze maakt na controle van de Scouting-identiteit zowel een Joomla-account als de benodigde identiteitskoppelingen aan. Sinds v1.0.1 worden Auto-register, Auto-update en Change Password automatisch op **Nee** gezet en worden User Validation en Email Validation leeggemaakt en vergrendeld. Dit geldt voor nieuwe én bestaande Scouting OIDC-servers; bij opslaan controleert de plugin deze waarden ook server-side. Andere External Login-providers worden niet aangepast.
-
-### Registratie bij Scouting Nederland
-
-Registreer voor iedere Joomla-website een eigen OIDC-client en voeg de exacte redirect-URI('s) en post-logout redirect-URI toe. De geteste aanvraag bevatte scopes voor e-mail, persoonlijke gegevens, lidmaatschap en rollen. Leg eerst vast welke gegevens de website werkelijk nodig heeft; vraag geen overbodige scopes aan.
-
-**Verplichte clientinstellingen bij Scouting Nederland (geteste werkende configuratie):** zet bij de OIDC-clientregistratie **beide vinkjes aan: `Publiek` én `PKCE`**. Alleen `PKCE` aanzetten werkte tijdens onze tests niet. Beide vinkjes ingeschakeld is de door ons bevestigde werkende combinatie voor v1.0.0 en v1.0.1.
-
-**Let op bij opslaan:** wanneer je `Publiek` aanvinkt en direct opslaat, kan Scouting Nederland melden dat PKCE ingeschakeld moet worden. Vink dan **PKCE opnieuw aan terwijl `Publiek` aangevinkt blijft** en sla opnieuw op. Controleer vervolgens dat **beide vinkjes actief zijn**. Dit is het daadwerkelijk geteste opslagverloop, geen alternatieve instelling.
-
-**Client Secret (v1.0.1):** bij de hierboven geteste registratie met **Publiek** en **PKCE** is geen Client Secret nodig. Het veld in Joomla is daarom optioneel en mag leeg blijven. Opslaan en opnieuw inloggen zonder Client Secret zijn op 30 oktober 2026 succesvol getest. Gebruik voor een andere clientconfiguratie alleen instellingen die je zelf hebt gevalideerd.
 
 ### Functionele test (29 oktober 2026)
 
