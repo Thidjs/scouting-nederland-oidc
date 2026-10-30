@@ -201,6 +201,31 @@ document.addEventListener('DOMContentLoaded', function () {
     if (plugin && configured && configured.value === 'system.scoutingoidc' && !plugin.value) {
         plugin.value = configured.value;
     }
+
+    // Lock automatic account changes only for new Scouting OIDC servers.
+    // Disabled radio inputs are not submitted, so supply explicit zero values.
+    const serverId = form.querySelector('input[name="jform[id]"]');
+    if (!configured || configured.value !== 'system.scoutingoidc'
+        || !serverId || Number(serverId.value) !== 0) {
+        return;
+    }
+
+    for (const name of ['autoregister', 'autoupdate']) {
+        const fieldName = 'jform[params][' + name + ']';
+        const radios = form.querySelectorAll('input[type="radio"][name="' + fieldName + '"]');
+        if (!radios.length) continue;
+
+        radios.forEach(function (radio) {
+            radio.checked = radio.value === '0';
+            radio.disabled = true;
+        });
+
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = fieldName;
+        hidden.value = '0';
+        form.appendChild(hidden);
+    }
 });
 JS);
     }
