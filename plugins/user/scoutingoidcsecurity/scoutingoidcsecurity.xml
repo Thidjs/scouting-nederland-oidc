@@ -3,8 +3,8 @@
     <name>Scouting Nederland OIDC - Accountbeveiliging</name>
     <license>GNU General Public License version 2 or later</license>
     <author>Thijs van Ree</author>
-    <creationDate>28-10-2026</creationDate>
-    <version>1.0.1</version>
+    <creationDate>30-10-2026</creationDate>
+    <version>1.0.2</version>
     <description>Beveiligt Scouting Nederland OIDC-accounts tegen alternatieve authenticatie en lokale wachtwoordwijzigingen.</description>
     <namespace path="src">Joomla\Plugin\User\Scoutingoidcsecurity</namespace>
     <files>
