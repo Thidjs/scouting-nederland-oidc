@@ -202,11 +202,9 @@ document.addEventListener('DOMContentLoaded', function () {
         plugin.value = configured.value;
     }
 
-    // Lock automatic account changes only for new Scouting OIDC servers.
+    // Lock these settings for every Scouting OIDC server, including edits.
     // Disabled radio inputs are not submitted, so supply explicit zero values.
-    const serverId = form.querySelector('input[name="jform[id]"]');
-    if (!configured || configured.value !== 'system.scoutingoidc'
-        || !serverId || Number(serverId.value) !== 0) {
+    if (!configured || configured.value !== 'system.scoutingoidc') {
         return;
     }
 
@@ -220,24 +218,25 @@ document.addEventListener('DOMContentLoaded', function () {
             radio.disabled = true;
         });
 
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = fieldName;
-        hidden.value = '0';
-        form.appendChild(hidden);
+        if (!form.querySelector('input[type="hidden"][name="' + fieldName + '"]')) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = fieldName;
+            hidden.value = '0';
+            form.appendChild(hidden);
+        }
     }
 });
 JS);
     }
 
     /**
-     * Reject unsafe automatic account changes for newly created Scouting servers.
-     * Existing servers and other External Login providers are left unchanged.
+     * Reject unsafe automatic account changes for all Scouting OIDC servers.
+     * Other External Login providers are left unchanged.
      */
     public function onContentBeforeSave(\Joomla\CMS\Event\Model\BeforeSaveEvent $event): void
     {
-        if ($event->getArgument('context') !== 'com_externallogin.server'
-            || !$event->getArgument('isNew')) {
+        if ($event->getArgument('context') !== 'com_externallogin.server') {
             return;
         }
 
