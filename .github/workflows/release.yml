@@ -35,25 +35,37 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os, xml.etree.ElementTree as ET
+          import os, re, datetime, xml.etree.ElementTree as ET
           paths = [
               'pkg_scoutingoidc.xml',
               'plugins/system/scoutingoidc/scoutingoidc.xml',
               'plugins/user/scoutingoidcsecurity/scoutingoidcsecurity.xml',
           ]
           versions = []
+          dates = []
           for path in paths:
               root = ET.parse(path).getroot()
               version = root.findtext('version')
               if not version:
                   raise SystemExit(f'Missing version: {path}')
               versions.append(version)
+              date = root.findtext('creationDate')
+              if not date or not re.fullmatch(r'\\d{2}-\\d{2}-\\d{4}', date):
+                  raise SystemExit(f'Invalid creationDate in {path}: {date}')
+              datetime.datetime.strptime(date, '%d-%m-%Y')
+              dates.append(date)
           if len(set(versions)) != 1:
               raise SystemExit(f'Inconsistent versions: {dict(zip(paths, versions))}')
+          if len(set(dates)) != 1:
+              raise SystemExit(f'Inconsistent creationDate values: {dict(zip(paths, dates))}')
           tag = os.environ.get('GITHUB_REF', '')
           if tag.startswith('refs/tags/') and tag.removeprefix('refs/tags/') != 'v' + versions[0]:
               raise SystemExit('Git tag does not match package version')
-          print('Validated Joomla versions:', versions[0])
+          if tag.startswith('refs/tags/'):
+              today_utc = datetime.datetime.now(datetime.timezone.utc).strftime('%d-%m-%Y')
+              if dates[0] != today_utc:
+                  raise SystemExit(f'Release date {dates[0]} differs from tag workflow date {today_utc} UTC')
+          print('Validated Joomla versions and release date:', versions[0], dates[0])
           PY
       - name: Build Joomla package
         shell: bash
@@ -102,7 +114,7 @@ jobs:
           update = root.find("update")
           assert update.findtext("element") == "pkg_scoutingoidc"
           assert update.findtext("type") == "package"
-          assert update.findtext("version") == "1.0.1" or update.findtext("version") == ET.parse("pkg_scoutingoidc.xml").getroot().findtext("version")
+          assert update.findtext("version") == ET.parse("pkg_scoutingoidc.xml").getroot().findtext("version")
           version = update.findtext("version")
           expected = hashlib.sha256(Path(f"release/pkg_scoutingoidc-{version}.zip").read_bytes()).hexdigest()
           assert update.findtext("sha256") == expected
