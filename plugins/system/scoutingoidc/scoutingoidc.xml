@@ -5,8 +5,8 @@
     <author>Thijs van Ree</author>
     <authorUrl>https://github.com/akunzai/joomla-external-login</authorUrl>
     <license>GNU General Public License version 2 or later; see LICENSE</license>
-    <version>1.0.0</version>
-    <description>Scouting Nederland OIDC-integratie. Gebaseerd op External Login OIDC 5.2.0 van de oorspronkelijke ontwikkelaars; onderdeel van Scouting Nederland OIDC 1.0.0.</description>
+    <version>1.0.1</version>
+    <description>Scouting Nederland OIDC-integratie. Gebaseerd op External Login OIDC 5.2.0 van de oorspronkelijke ontwikkelaars; onderdeel van Scouting Nederland OIDC 1.0.1.</description>
     <namespace path="src">Joomla\Plugin\System\Scoutingoidc</namespace>
     <files>
         <folder plugin="scoutingoidc">services</folder>
