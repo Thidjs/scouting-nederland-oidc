@@ -79,6 +79,36 @@ jobs:
                           assert any(x.endswith('.xml') for x in inner.namelist())
           print('Package archives validated')
           PY
+      - name: Validate Joomla update feed generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          print(ET.parse("pkg_scoutingoidc.xml").getroot().findtext("version"))
+          PY
+          )"
+          mkdir -p release
+          cp dist/pkg_scoutingoidc-build.zip "release/pkg_scoutingoidc-${version}.zip"
+          python3 scripts/generate_update_feed.py \
+            --version "${version}" \
+            --zip "release/pkg_scoutingoidc-${version}.zip" \
+            --output "site/updates/scoutingoidc.xml"
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          root = ET.parse("site/updates/scoutingoidc.xml").getroot()
+          update = root.find("update")
+          assert update.findtext("element") == "pkg_scoutingoidc"
+          assert update.findtext("type") == "package"
+          assert update.findtext("version") == "1.0.1" or update.findtext("version") == ET.parse("pkg_scoutingoidc.xml").getroot().findtext("version")
+          version = update.findtext("version")
+          expected = hashlib.sha256(Path(f"release/pkg_scoutingoidc-{version}.zip").read_bytes()).hexdigest()
+          assert update.findtext("sha256") == expected
+          assert update.findtext("downloads/downloadurl").endswith(f"/v{version}/pkg_scoutingoidc-{version}.zip")
+          print("Joomla update feed validated:", version)
+          PY
       - name: Package release filename
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
@@ -113,3 +143,53 @@ jobs:
           version="${tag#v}"
           mv dist/pkg_scoutingoidc-build.zip "dist/pkg_scoutingoidc-${version}.zip"
           gh release create "${tag}" "dist/pkg_scoutingoidc-${version}.zip"             --repo "${GITHUB_REPOSITORY}"             --verify-tag             --title "Scouting Nederland OIDC ${tag}"             --generate-notes
+
+  prepare-update-site:
+    needs: publish-release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the published release ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p release
+          gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --pattern "pkg_scoutingoidc-${version}.zip" --dir release
+          python3 scripts/generate_update_feed.py \
+            --version "${version}" \
+            --zip "release/pkg_scoutingoidc-${version}.zip" \
+            --output "site/updates/scoutingoidc.xml"
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("site/updates/scoutingoidc.xml").getroot()
+          assert root.findtext("update/element") == "pkg_scoutingoidc"
+          assert root.findtext("update/type") == "package"
+          assert len(root.findtext("update/sha256")) == 64
+          PY
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy-update-site:
+    needs: prepare-update-site
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish Joomla update feed
+        id: deployment
+        uses: actions/deploy-pages@v4
