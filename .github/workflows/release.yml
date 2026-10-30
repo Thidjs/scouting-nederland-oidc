@@ -50,7 +50,7 @@ jobs:
                   raise SystemExit(f'Missing version: {path}')
               versions.append(version)
               date = root.findtext('creationDate')
-              if not date or not re.fullmatch(r'\\d{2}-\\d{2}-\\d{4}', date):
+              if not date or not re.fullmatch(r'[0-9]{2}-[0-9]{2}-[0-9]{4}', date):
                   raise SystemExit(f'Invalid creationDate in {path}: {date}')
               datetime.datetime.strptime(date, '%d-%m-%Y')
               dates.append(date)
