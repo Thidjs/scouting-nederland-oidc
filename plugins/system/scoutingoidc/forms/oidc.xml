@@ -41,7 +41,7 @@
         </fieldset>
         <fieldset name="client" label="PLG_SYSTEM_SCOUTINGOIDC_FIELDSET_CLIENT_LABEL" description="PLG_SYSTEM_SCOUTINGOIDC_FIELDSET_CLIENT_DESC">
             <field name="client_id" type="text" size="30" default="" label="PLG_SYSTEM_SCOUTINGOIDC_FIELD_CLIENT_ID_LABEL" description="PLG_SYSTEM_SCOUTINGOIDC_FIELD_CLIENT_ID_DESC" required="true" />
-            <field name="client_secret" type="password" size="30" default="" label="PLG_SYSTEM_SCOUTINGOIDC_FIELD_CLIENT_SECRET_LABEL" description="PLG_SYSTEM_SCOUTINGOIDC_FIELD_CLIENT_SECRET_DESC" required="true" />
+            <field name="client_secret" type="password" size="30" default="" label="PLG_SYSTEM_SCOUTINGOIDC_FIELD_CLIENT_SECRET_LABEL" description="PLG_SYSTEM_SCOUTINGOIDC_FIELD_CLIENT_SECRET_DESC" />
         </fieldset>
         <fieldset name="attributes" label="PLG_SYSTEM_SCOUTINGOIDC_FIELDSET_ATTRIBUTES_LABEL" description="PLG_SYSTEM_SCOUTINGOIDC_FIELDSET_ATTRIBUTES_DESC">
             <field name="username_claim" type="text" required="true" size="30" default="member_id" label="PLG_SYSTEM_SCOUTINGOIDC_FIELD_USERNAME_CLAIM_LABEL" description="PLG_SYSTEM_SCOUTINGOIDC_FIELD_USERNAME_CLAIM_DESC" />
