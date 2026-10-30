@@ -182,6 +182,116 @@ class Scoutingoidc extends CMSPlugin
         $this->loadLanguage();
         Form::addFormPath(dirname(__DIR__, 2) . '/forms');
         $form->loadFile('oidc', false);
+
+        // These defaults apply only when creating a Scouting OIDC server.
+        // Joomla loads persisted params after form preparation for existing servers.
+        $form->setFieldAttribute('usergroup', 'default', '2', 'params');
+        $form->setFieldAttribute('autoregister', 'default', '0', 'params');
+        $form->setFieldAttribute('autoupdate', 'default', '0', 'params');
+        $form->setFieldAttribute('allow_change_password', 'default', '0', 'params');
+        $form->setFieldAttribute('regex_user', 'default', '', 'params');
+        $form->setFieldAttribute('regex_email', 'default', '', 'params');
+
+        // External Login renders a separate top-level "plugin" hidden input from
+        // the empty item on new servers. Its failure redirect relies on this value.
+        // Repair only that field; do not change the OIDC form data or other providers.
+        Factory::getApplication()->getDocument()->getWebAssetManager()->addInlineScript(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('server-form');
+    if (!form) return;
+    const plugin = form.querySelector('input[name="plugin"]');
+    const configured = form.querySelector('input[name="jform[plugin]"]');
+    if (plugin && configured && configured.value === 'system.scoutingoidc' && !plugin.value) {
+        plugin.value = configured.value;
+    }
+
+    // Lock these settings for every Scouting OIDC server, including edits.
+    // Disabled radio inputs are not submitted, so supply explicit zero values.
+    if (!configured || configured.value !== 'system.scoutingoidc') {
+        return;
+    }
+
+    for (const name of ['autoregister', 'autoupdate', 'allow_change_password']) {
+        const fieldName = 'jform[params][' + name + ']';
+        const radios = form.querySelectorAll('input[type="radio"][name="' + fieldName + '"]');
+        if (!radios.length) continue;
+
+        radios.forEach(function (radio) {
+            radio.checked = radio.value === '0';
+            radio.disabled = true;
+        });
+
+        if (!form.querySelector('input[type="hidden"][name="' + fieldName + '"]')) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = fieldName;
+            hidden.value = '0';
+            form.appendChild(hidden);
+        }
+    }
+
+    for (const name of ['regex_user', 'regex_email']) {
+        const fieldName = 'jform[params][' + name + ']';
+        const field = form.querySelector('input[name="' + fieldName + '"]');
+        if (!field) continue;
+        field.value = '';
+        field.disabled = true;
+        if (!form.querySelector('input[type="hidden"][name="' + fieldName + '"]')) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = fieldName;
+            hidden.value = '';
+            form.appendChild(hidden);
+        }
+    }
+});
+JS);
+    }
+
+    /**
+     * Reject unsafe automatic account changes for all Scouting OIDC servers.
+     * Other External Login providers are left unchanged.
+     */
+    public function onContentBeforeSave(\Joomla\CMS\Event\Model\BeforeSaveEvent $event): void
+    {
+        if ($event->getArgument('context') !== 'com_externallogin.server') {
+            return;
+        }
+
+        $server = $event->getArgument('subject');
+
+        if (!$server || ($server->plugin ?? null) !== 'system.scoutingoidc') {
+            return;
+        }
+
+        $params = $server->params ?? null;
+        if ($params instanceof Registry) {
+            $values = $params->toArray();
+        } elseif (is_array($params)) {
+            $values = $params;
+        } else {
+            $values = null;
+        }
+
+        $valid = is_array($values);
+        if ($valid) {
+            foreach (['autoregister', 'autoupdate', 'allow_change_password'] as $name) {
+                $valid = $valid && (string) ($values[$name] ?? '0') === '0';
+            }
+            foreach (['regex_user', 'regex_email'] as $name) {
+                $valid = $valid && (string) ($values[$name] ?? '') === '';
+            }
+        }
+
+        if (!$valid) {
+            // Preserve provider identity when External Login redirects after rejection.
+            $input = Factory::getApplication()->getInput();
+            if ($input->get('plugin', '') === '') {
+                $input->set('plugin', 'system.scoutingoidc');
+            }
+            $server->setError('Scouting OIDC: automatic registration, automatic updates and password changes must be disabled; user and email validation must be empty.');
+            $event->addResult(false);
+        }
     }
 
     /**
