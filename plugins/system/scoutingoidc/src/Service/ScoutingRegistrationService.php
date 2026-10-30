@@ -140,7 +140,8 @@ final class ScoutingRegistrationService
 
         if ((int) $db->loadResult() !== 0) {
             throw new RuntimeException(
-                'Email address is already registered'
+                'Email address is already registered',
+                16001 // Internal category: EXISTING_EMAIL; never show exception text.
             );
         }
 

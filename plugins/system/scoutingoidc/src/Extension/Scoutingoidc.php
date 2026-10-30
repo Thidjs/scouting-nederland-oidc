@@ -696,6 +696,7 @@ $this->log(
 // NEW users remain denied until transactional registration is implemented.
 if ($isScoutingServer) {
     $scoutingStatus = 'DENIED';
+    $scoutingRegistrationConflict = false;
 
     try {
         require_once __DIR__ . '/../Service/ScoutingIdentityService.php';
@@ -807,7 +808,20 @@ if ($isScoutingServer) {
 
 
     } catch (\Throwable $e) {
-        // Fail closed. Never expose claims or database details.
+        // Classify only this known registration failure; never expose details.
+        $scoutingRegistrationConflict = $e instanceof \RuntimeException
+            && $e->getCode() === 16001;
+
+        if ($scoutingRegistrationConflict) {
+            $this->log(
+                $params,
+                'log_login',
+                'system-scoutingoidc-login',
+                'Scouting registration denied: EXISTING_EMAIL',
+                Log::WARNING
+            );
+        }
+
         $scoutingStatus = 'DENIED';
     }
 
@@ -822,8 +836,9 @@ if ($isScoutingServer) {
 
         $extResponse->status = Authentication::STATUS_DENIED;
         $extResponse->type = 'system.scoutingoidc';
-        $extResponse->error_message =
-            'Scouting-identiteit is nog niet gekoppeld aan een Joomla-account.';
+        $extResponse->error_message = $scoutingRegistrationConflict
+            ? Text::_('PLG_SYSTEM_SCOUTINGOIDC_REGISTRATION_CONFLICT')
+            : Text::_('PLG_SYSTEM_SCOUTINGOIDC_IDENTITY_NOT_LINKED');
 
         if ($response !== $extResponse) {
             $response->status = $extResponse->status;
