@@ -188,6 +188,9 @@ class Scoutingoidc extends CMSPlugin
         $form->setFieldAttribute('usergroup', 'default', '2', 'params');
         $form->setFieldAttribute('autoregister', 'default', '0', 'params');
         $form->setFieldAttribute('autoupdate', 'default', '0', 'params');
+        $form->setFieldAttribute('allow_change_password', 'default', '0', 'params');
+        $form->setFieldAttribute('regex_user', 'default', '', 'params');
+        $form->setFieldAttribute('regex_email', 'default', '', 'params');
 
         // External Login renders a separate top-level "plugin" hidden input from
         // the empty item on new servers. Its failure redirect relies on this value.
@@ -208,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
-    for (const name of ['autoregister', 'autoupdate']) {
+    for (const name of ['autoregister', 'autoupdate', 'allow_change_password']) {
         const fieldName = 'jform[params][' + name + ']';
         const radios = form.querySelectorAll('input[type="radio"][name="' + fieldName + '"]');
         if (!radios.length) continue;
@@ -223,6 +226,21 @@ document.addEventListener('DOMContentLoaded', function () {
             hidden.type = 'hidden';
             hidden.name = fieldName;
             hidden.value = '0';
+            form.appendChild(hidden);
+        }
+    }
+
+    for (const name of ['regex_user', 'regex_email']) {
+        const fieldName = 'jform[params][' + name + ']';
+        const field = form.querySelector('input[name="' + fieldName + '"]');
+        if (!field) continue;
+        field.value = '';
+        field.disabled = true;
+        if (!form.querySelector('input[type="hidden"][name="' + fieldName + '"]')) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = fieldName;
+            hidden.value = '';
             form.appendChild(hidden);
         }
     }
@@ -248,25 +266,30 @@ JS);
 
         $params = $server->params ?? null;
         if ($params instanceof Registry) {
-            $autoregister = $params->get('autoregister', 0);
-            $autoupdate = $params->get('autoupdate', 0);
+            $values = $params->toArray();
         } elseif (is_array($params)) {
-            $autoregister = $params['autoregister'] ?? 0;
-            $autoupdate = $params['autoupdate'] ?? 0;
+            $values = $params;
         } else {
-            // Fail closed if the incoming server configuration cannot be inspected.
-            $autoregister = 1;
-            $autoupdate = 1;
+            $values = null;
         }
 
-        if ((string) $autoregister !== '0' || (string) $autoupdate !== '0') {
-            // Preserve the provider identity for External Login's failed-save
-            // redirect even when JavaScript was disabled or the hidden field empty.
+        $valid = is_array($values);
+        if ($valid) {
+            foreach (['autoregister', 'autoupdate', 'allow_change_password'] as $name) {
+                $valid = $valid && (string) ($values[$name] ?? '0') === '0';
+            }
+            foreach (['regex_user', 'regex_email'] as $name) {
+                $valid = $valid && (string) ($values[$name] ?? '') === '';
+            }
+        }
+
+        if (!$valid) {
+            // Preserve provider identity when External Login redirects after rejection.
             $input = Factory::getApplication()->getInput();
             if ($input->get('plugin', '') === '') {
                 $input->set('plugin', 'system.scoutingoidc');
             }
-            $server->setError('Scouting OIDC: automatic registration and automatic updates must both be disabled.');
+            $server->setError('Scouting OIDC: automatic registration, automatic updates and password changes must be disabled; user and email validation must be empty.');
             $event->addResult(false);
         }
     }
