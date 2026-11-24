@@ -7,7 +7,7 @@ Joomla 5-integratie om gebruikers te laten inloggen via de OpenID Connect-dienst
 ## Vereisten
 
 - Joomla 5
-- [External Login](https://github.com/akunzai/joomla-external-login) **5.2.0** (exact; wordt gecontroleerd bij installatie)
+- [External Login](https://github.com/akunzai/joomla-external-login) **5.2.0 of 5.3.0** (expliciet toegestane versies in de volgende, nog te publiceren Scouting OIDC-release; het gepubliceerde pakket v1.0.2 controleert nog uitsluitend 5.2.0). Nieuwe External Login-versies worden pas na compatibiliteitstests toegevoegd.
 - Een OIDC-clientregistratie bij Scouting Nederland
 
 ## Registratie bij Scouting Nederland
@@ -24,7 +24,7 @@ Ga hiervoor naar https://login.scouting.nl Let op, dit werkt alleen als je in SO
 
 ## Installeren
 
-1. Installeer External Login 5.2.0 in Joomla.
+1. Voor het gepubliceerde Scouting OIDC-pakket v1.0.2: installeer External Login 5.2.0 in Joomla. De volgende release zal na pakket- en installatietests ook 5.3.0 ondersteunen.
 2. Download **[`pkg_scoutingoidc-1.0.2.zip`](https://github.com/Thidjs/scouting-nederland-oidc/releases/download/v1.0.2/pkg_scoutingoidc-1.0.2.zip)** uit de [v1.0.2-release](https://github.com/Thidjs/scouting-nederland-oidc/releases/tag/v1.0.2). Gebruik het releasebestand, niet de broncode-ZIP van GitHub.
 3. Installeer de ZIP via **Systeem → Installeren → Extensies**.
 4. **Activeer eerst de benodigde plugins** via **Systeem → Plugins**: **Scouting Nederland OIDC** (`system/scoutingoidc`), **Scouting Nederland OIDC – Accountbeveiliging** (`user/scoutingoidcsecurity`), **System – External Login** en **Authentication – External Login**. Zonder de geactiveerde Scouting-systeemplugin is de provider niet beschikbaar bij het aanmaken van een External Login-server.
