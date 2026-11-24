@@ -1,12 +1,20 @@
 # Changelog
 
-## [1.0.2] - 2026-10-30 (gepland)
+## [1.0.3] - 2026-11-24 (voorbereiding; nog niet gepubliceerd)
+
+- Installer accepteert uitsluitend de geteste External Login-versies 5.2.0 en 5.3.0; andere versies blijven geblokkeerd.
+- Functionele compatibiliteit met External Login 5.3.0 op Joomla-testomgeving bevestigd: login, logout, hernieuwde login, bestaande identiteitskoppeling en kalenderrechten.
+- De automatische update van Scouting OIDC v1.0.2 naar v1.0.3 via Joomla moet nog end-to-end worden getest.
+- Het reeds onder External Login 5.2.0 aanwezige testomgevingprobleem met callbackpad `/index.php` wordt afzonderlijk gevolgd in issue #20.
+
+
+## [1.0.2] - 2026-10-30
 
 - Joomla package-update-server geregistreerd; toekomstige releases kunnen via de Joomla Extensie-updater worden aangeboden.
 - Updatefeed wordt bij GitHub Releases gegenereerd en via GitHub Pages gepubliceerd, inclusief download-URL en SHA-256.
 - Releasedatum in pakket- en pluginmanifesten geactualiseerd; CI controleert consistentie en bij tags de UTC-releasedatum.
 - Let op: bestaande v1.0.1-installaties hebben nog geen update-serverregistratie en moeten eenmalig handmatig naar v1.0.2 worden bijgewerkt.
-- Publicatie en end-to-end updateherkenning in Joomla moeten nog worden getest.
+- Publicatie is afgerond; end-to-end updateherkenning in Joomla moet nog worden getest.
 
 ## [1.0.1] - 2026-10-30
 
