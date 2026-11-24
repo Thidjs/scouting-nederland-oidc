@@ -1,12 +1,12 @@
 <?xml version='1.0' encoding='utf-8'?>
 <extension version="5" type="plugin" group="system" method="upgrade">
     <name>Scouting Nederland OIDC</name>
-    <creationDate>30-10-2026</creationDate>
+    <creationDate>24-11-2026</creationDate>
     <author>Thijs van Ree</author>
     <authorUrl>https://github.com/akunzai/joomla-external-login</authorUrl>
     <license>GNU General Public License version 2 or later; see LICENSE</license>
-    <version>1.0.2</version>
-    <description>Scouting Nederland OIDC-integratie. Gebaseerd op External Login OIDC 5.2.0 van de oorspronkelijke ontwikkelaars; onderdeel van Scouting Nederland OIDC 1.0.2.</description>
+    <version>1.0.3</version>
+    <description>Scouting Nederland OIDC-integratie. Gebaseerd op External Login OIDC 5.2.0 van de oorspronkelijke ontwikkelaars; onderdeel van Scouting Nederland OIDC 1.0.3.</description>
     <namespace path="src">Joomla\Plugin\System\Scoutingoidc</namespace>
     <files>
         <folder plugin="scoutingoidc">services</folder>
