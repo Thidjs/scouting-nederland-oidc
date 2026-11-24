@@ -2,12 +2,12 @@
 
 Joomla 5-integratie om gebruikers te laten inloggen via de OpenID Connect-dienst van Scouting Nederland.
 
-**Status:** v1.0.3 — gepubliceerd op 24 november 2026. De automatische Joomla-update van v1.0.2 naar v1.0.3 is op de testomgeving succesvol geïnstalleerd met External Login 5.3.0; beide plugins en het pakket tonen v1.0.3. Inloggen na de update is bevestigd. De afzonderlijke schone installatie van het juiste v1.0.3-releasepakket op Joomla 5.4.10 met External Login 5.3.0 is eveneens geslaagd; die omgeving diende uitsluitend als installatietest. De eerdere productiepilot op St. Salvius en de schone installatie en upgrade naar v1.0.1 op Regio Westelijke Mijnstreek (Joomla 5.4.10 + External Login 5.2.0) zijn succesvol getest. De handmatige pakketupgrade naar v1.0.2 op Regio Westelijke Mijnstreek is geslaagd; Joomla heeft de nieuwe update-server geregistreerd. De Joomla-updatedetectie en installatie naar v1.0.3 zijn op de testomgeving end-to-end bevestigd.
+**Status:** v1.0.4 — gepubliceerd op 24 november 2026. De installer controleert de versie van het geïnstalleerde External Login-**pakket** (`pkg_externallogin`) in plaats van de component (waarvan de versie leeg kan zijn). Ondersteunde versies blijven 5.2.0 en 5.3.0. Op de met productie gelijkgetrokken Joomla-testsite is eerst de v1.0.3-fout met External Login 5.2.0 gereproduceerd; daarna zijn de handmatige v1.0.4-installatie en de automatische Joomla-update **1.0.2 → 1.0.4** succesvol getest. Pakket en beide plugins tonen 1.0.4 en zijn ingeschakeld, met behoud van pakket-ID 10229 en plugin-ID's 10228/10218. De bestaande Scouting Nederland-login werkt na de update. Productie is nog niet bijgewerkt. De eerder geteste compatibiliteit met External Login 5.3.0 blijft gedocumenteerd bij v1.0.3; een aparte functionele v1.0.4-test met 5.3.0 is niet gerapporteerd.
 
 ## Vereisten
 
 - Joomla 5
-- [External Login](https://github.com/akunzai/joomla-external-login) **5.2.0 of 5.3.0** (beide expliciet toegestaan door de installer van Scouting OIDC v1.0.3; v1.0.2 accepteerde uitsluitend 5.2.0). Nieuwe External Login-versies worden pas na compatibiliteitstests toegevoegd.
+- [External Login](https://github.com/akunzai/joomla-external-login) **5.2.0 of 5.3.0** (beide expliciet toegestaan door de installer van Scouting OIDC v1.0.4; v1.0.2 accepteerde uitsluitend 5.2.0). Nieuwe External Login-versies worden pas na compatibiliteitstests toegevoegd.
 - Een OIDC-clientregistratie bij Scouting Nederland
 
 ## Registratie bij Scouting Nederland
@@ -24,8 +24,8 @@ Ga hiervoor naar https://login.scouting.nl Let op, dit werkt alleen als je in SO
 
 ## Installeren
 
-1. Installeer External Login **5.2.0 of 5.3.0** in Joomla; Scouting OIDC v1.0.3 ondersteunt beide versies expliciet.
-2. Download **[`pkg_scoutingoidc-1.0.3.zip`](https://github.com/Thidjs/scouting-nederland-oidc/releases/download/v1.0.3/pkg_scoutingoidc-1.0.3.zip)** uit de [v1.0.3-release](https://github.com/Thidjs/scouting-nederland-oidc/releases/tag/v1.0.3). Gebruik het releasebestand, niet de broncode-ZIP van GitHub.
+1. Installeer External Login **5.2.0 of 5.3.0** in Joomla; Scouting OIDC v1.0.4 ondersteunt beide versies expliciet.
+2. Download **[`pkg_scoutingoidc-1.0.4.zip`](https://github.com/Thidjs/scouting-nederland-oidc/releases/download/v1.0.4/pkg_scoutingoidc-1.0.4.zip)** uit de [v1.0.4-release](https://github.com/Thidjs/scouting-nederland-oidc/releases/tag/v1.0.4). Gebruik het releasebestand, niet de broncode-ZIP van GitHub.
 3. Installeer de ZIP via **Systeem → Installeren → Extensies**.
 4. **Activeer eerst de benodigde plugins** via **Systeem → Plugins**: **Scouting Nederland OIDC** (`system/scoutingoidc`), **Scouting Nederland OIDC – Accountbeveiliging** (`user/scoutingoidcsecurity`), **System – External Login** en **Authentication – External Login**. Zonder de geactiveerde Scouting-systeemplugin is de provider niet beschikbaar bij het aanmaken van een External Login-server.
 5. Maak daarna in **External Login → Servers** een **nieuwe** server aan met de provider **Scouting Nederland OIDC**.
@@ -47,7 +47,7 @@ Ga hiervoor naar https://login.scouting.nl Let op, dit werkt alleen als je in SO
 2. **Verwijder de bestaande plugins of External Login-server niet.** Download [`pkg_scoutingoidc-1.0.2.zip`](https://github.com/Thidjs/scouting-nederland-oidc/releases/download/v1.0.2/pkg_scoutingoidc-1.0.2.zip) en installeer het pakket over v1.0.1 via **Systeem → Installeren → Extensies**.
 3. Controleer de geïnstalleerde pakket- en pluginversies en test de bestaande OIDC-login.
 4. Controleer onder **Systeem → Update → Updatesites** of **Scouting Nederland OIDC Updates** ingeschakeld is, met type **Pakket** en URL `https://thidjs.github.io/scouting-nederland-oidc/updates/scoutingoidc.xml`.
-5. Gebruik **Systeem → Update → Extensies → Controleren op updates** om te controleren of Joomla de updatebron zonder fouten kan raadplegen. Sinds 24 november 2026 wordt v1.0.3 aangeboden.
+5. Gebruik **Systeem → Update → Extensies → Controleren op updates** om te controleren of Joomla de updatebron zonder fouten kan raadplegen. Sinds 24 november 2026 wordt v1.0.4 aangeboden.
 
 **Let op:** v1.0.1 registreert nog geen updatesite. Daarom moet de overstap naar v1.0.2 eenmalig handmatig gebeuren. Vanaf v1.0.2 is de update-server geregistreerd; het daadwerkelijk detecteren en installeren van v1.0.3 via Joomla is op de testomgeving bevestigd.
 
@@ -63,6 +63,15 @@ Ga hiervoor naar https://login.scouting.nl Let op, dit werkt alleen als je in SO
 **Test op 24 november 2026:** op `stsalviustest.vanreeonline.nl` met External Login **5.3.0** heeft Joomla de update herkend en geïnstalleerd. Pakket en beide plugins tonen v1.0.3 en Package ID 10229; de gebruiker bevestigt dat inloggen na de update werkt. De gebruiker heeft de OIDC-login na de upgrade bevestigd. Uitloggen en autorisaties zijn niet afzonderlijk opnieuw getest na de upgrade; de eerdere functionele tests vóór de upgrade waren geslaagd. De afwijking bij aanmelden vanaf `/index.php` is een afzonderlijk probleem ([issue #20](https://github.com/Thidjs/scouting-nederland-oidc/issues/20)) en geen aangetoonde regressie van 5.3.0.
 
 **Releaseherstel:** bij v1.0.3 was de GitHub Release al handmatig aangemaakt, waardoor `gh release create` faalde. Het oorspronkelijke, gevalideerde Actions-artifact is daarna via een eenmalige herstelworkflow aan de bestaande release toegevoegd en de Joomla-updatefeed is gepubliceerd. De reguliere releaseworkflow is aangepast zodat een bestaande release het asset krijgt via `gh release upload`. De tag `v1.0.3` is niet verplaatst. Na succesvolle validatie is de eenmalige herstelworkflow `.github/workflows/recover-v1.0.3.yml` weer verwijderd; de reguliere releaseworkflow blijft bestaan.
+
+## Automatisch upgraden van v1.0.2 naar v1.0.4
+
+1. Maak een herstelbare back-up van Joomla-bestanden en database. Laat External Login 5.2.0 of 5.3.0 geïnstalleerd; verwijder geen bestaande plugins of OIDC-server.
+2. Ga naar **Systeem → Update → Extensies**, controleer op updates en installeer **Scouting Nederland OIDC 1.0.4** via de Joomla Update Manager.
+3. Controleer dat het pakket en beide plugins versie **1.0.4** tonen, ingeschakeld blijven en de bestaande extensie-ID's behouden.
+4. Test uitloggen en opnieuw inloggen met een bestaand gekoppeld Scouting-account; controleer aanvullende autorisaties en serverinstellingen voor zover relevant.
+
+**Test op 24 november 2026:** op de met productie gelijkgetrokken testsite met **External Login 5.2.0** blokkeerde de oude v1.0.3-installer de update met een lege `Aangetroffen versie:`. Oorzaak: versiecontrole op de External Login-component in plaats van het pakket. Na correctie in [PR #21](https://github.com/Thidjs/scouting-nederland-oidc/pull/21) slaagde zowel de handmatige installatie van de GitHub Actions-build als de Joomla Update Manager-upgrade **1.0.2 → 1.0.4**. Pakket-ID 10229 en plugin-ID's 10228 en 10218 bleven behouden; alle onderdelen waren actief. De gebruiker bevestigde dat de bestaande Scouting Nederland-login nog werkt. **Productie is nog niet bijgewerkt.** Zie [issue #19](https://github.com/Thidjs/scouting-nederland-oidc/issues/19). De afwijking bij `/index.php` wordt afzonderlijk gevolgd in [issue #20](https://github.com/Thidjs/scouting-nederland-oidc/issues/20).
 
 ## Geteste serverinstellingen (v1.0.1)
 
@@ -126,6 +135,8 @@ De publieke [Joomla-updatefeed](https://thidjs.github.io/scouting-nederland-oidc
 
 ## Roadmap
 
+**v1.0.4 (uitgebracht):** herstelt de versiecontrole op External Login 5.2.0 door het pakketmanifest te lezen; handmatige installatie, Joomla-update 1.0.2 → 1.0.4 en bestaande login zijn op de testsite geslaagd ([issue #19](https://github.com/Thidjs/scouting-nederland-oidc/issues/19), [PR #21](https://github.com/Thidjs/scouting-nederland-oidc/pull/21)). Productie-update volgt. Zie [CHANGELOG.md](CHANGELOG.md).
+
 **v1.0.3 (uitgebracht):** compatibiliteit met External Login 5.2.0 én 5.3.0 en succesvol geteste Joomla-updatedetectie en installatie op de testomgeving ([issue #19](https://github.com/Thidjs/scouting-nederland-oidc/issues/19)). De OIDC-login na de update en de schone pakketinstallatie zijn bevestigd; overige functionele scenario's zijn na de upgrade niet afzonderlijk herhaald. Zie [CHANGELOG.md](CHANGELOG.md).
 
 **v1.0.2 (uitgebracht):** Joomla-updatefeed via GitHub Pages, automatische releasepublicatie en controle op consistente manifestdatums ([issue #15](https://github.com/Thidjs/scouting-nederland-oidc/issues/15)). De installatie en updatesite-registratie zijn getest; detectie en installatie van v1.0.3 zijn op de testomgeving bevestigd. Zie [CHANGELOG.md](CHANGELOG.md).
@@ -136,7 +147,7 @@ De publieke [Joomla-updatefeed](https://thidjs.github.io/scouting-nederland-oidc
 
 **Servermigratie:** [issue #4](https://github.com/Thidjs/scouting-nederland-oidc/issues/4) is administratief afgerond. Een bestaande External Login-server wordt niet automatisch naar de Scouting-provider omgezet; wijzig de `plugin`-kolom niet rechtstreeks in de database. Nieuwe servers via de Joomla-interface zijn de gedocumenteerde route.
 
-**Open verbeterpunten:** volledige integratieverificatie van de Scouting trust policy en `email_verified` ([issue #3](https://github.com/Thidjs/scouting-nederland-oidc/issues/3); documentatie via [PR #10](https://github.com/Thidjs/scouting-nederland-oidc/pull/10)), verdere verificatie van de Joomla Update Manager ([issue #5](https://github.com/Thidjs/scouting-nederland-oidc/issues/5)) en foutdiagnostiek. De automatische pakketupgrade naar v1.0.3 via Joomla is op de testomgeving geslaagd.
+**Open verbeterpunten:** volledige integratieverificatie van de Scouting trust policy en `email_verified` ([issue #3](https://github.com/Thidjs/scouting-nederland-oidc/issues/3); documentatie via [PR #10](https://github.com/Thidjs/scouting-nederland-oidc/pull/10)), verdere verificatie van de Joomla Update Manager ([issue #5](https://github.com/Thidjs/scouting-nederland-oidc/issues/5)) en foutdiagnostiek. De automatische pakketupgrade naar v1.0.4 via Joomla is op de testomgeving geslaagd.
 
 **Toekomstige release:** eigen Joomla-loginmodule in Scouting Nederland-stijl ([issue #7](https://github.com/Thidjs/scouting-nederland-oidc/issues/7)), die de bestaande External Login/OIDC-beveiligingsketen hergebruikt.
 
