@@ -154,7 +154,17 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           version="${tag#v}"
           mv dist/pkg_scoutingoidc-build.zip "dist/pkg_scoutingoidc-${version}.zip"
-          gh release create "${tag}" "dist/pkg_scoutingoidc-${version}.zip"             --repo "${GITHUB_REPOSITORY}"             --verify-tag             --title "Scouting Nederland OIDC ${tag}"             --generate-notes
+          asset="dist/pkg_scoutingoidc-${version}.zip"
+          if gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${tag} exists; upload package asset."
+            gh release upload "${tag}" "${asset}" --repo "${GITHUB_REPOSITORY}" --clobber
+          else
+            gh release create "${tag}" "${asset}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag \
+              --title "Scouting Nederland OIDC ${tag}" \
+              --generate-notes
+          fi
 
   prepare-update-site:
     needs: publish-release
