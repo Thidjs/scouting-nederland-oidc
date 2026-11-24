@@ -2,7 +2,7 @@
 
 Joomla 5-integratie om gebruikers te laten inloggen via de OpenID Connect-dienst van Scouting Nederland.
 
-**Status:** v1.0.3 — gepubliceerd op 24 november 2026. De automatische Joomla-update van v1.0.2 naar v1.0.3 is op de testomgeving succesvol geïnstalleerd met External Login 5.3.0; beide plugins en het pakket tonen v1.0.3. Inloggen na de update is bevestigd; aanvullende autorisatie-/logout-regressiecontrole wordt nog afgerond. De eerdere productiepilot op St. Salvius en de schone installatie en upgrade naar v1.0.1 op Regio Westelijke Mijnstreek (Joomla 5.4.10 + External Login 5.2.0) zijn succesvol getest. De handmatige pakketupgrade naar v1.0.2 op Regio Westelijke Mijnstreek is geslaagd; Joomla heeft de nieuwe update-server geregistreerd. De Joomla-updatedetectie en installatie naar v1.0.3 zijn op de testomgeving end-to-end bevestigd.
+**Status:** v1.0.3 — gepubliceerd op 24 november 2026. De automatische Joomla-update van v1.0.2 naar v1.0.3 is op de testomgeving succesvol geïnstalleerd met External Login 5.3.0; beide plugins en het pakket tonen v1.0.3. Inloggen na de update is bevestigd. De afzonderlijke schone installatie van het juiste v1.0.3-releasepakket op Joomla 5.4.10 met External Login 5.3.0 is eveneens geslaagd; die omgeving diende uitsluitend als installatietest. De eerdere productiepilot op St. Salvius en de schone installatie en upgrade naar v1.0.1 op Regio Westelijke Mijnstreek (Joomla 5.4.10 + External Login 5.2.0) zijn succesvol getest. De handmatige pakketupgrade naar v1.0.2 op Regio Westelijke Mijnstreek is geslaagd; Joomla heeft de nieuwe update-server geregistreerd. De Joomla-updatedetectie en installatie naar v1.0.3 zijn op de testomgeving end-to-end bevestigd.
 
 ## Vereisten
 
@@ -60,9 +60,9 @@ Ga hiervoor naar https://login.scouting.nl Let op, dit werkt alleen als je in SO
 3. Installeer de update via Joomla en controleer dat **het pakket**, de **systeemplugin** en de **accountbeveiligingsplugin** alle versie **1.0.3** tonen en beide plugins actief zijn.
 4. Controleer de bestaande OIDC-login, correcte accountkoppeling, autorisaties, uitloggen en opnieuw inloggen.
 
-**Test op 24 november 2026:** op `stsalviustest.vanreeonline.nl` met External Login **5.3.0** heeft Joomla de update herkend en geïnstalleerd. Pakket en beide plugins tonen v1.0.3 en Package ID 10229; de gebruiker bevestigt dat inloggen na de update werkt. Overige functionele regressiecontroles staan nog open. De afwijking bij aanmelden vanaf `/index.php` is een afzonderlijk probleem ([issue #20](https://github.com/Thidjs/scouting-nederland-oidc/issues/20)) en geen aangetoonde regressie van 5.3.0.
+**Test op 24 november 2026:** op `stsalviustest.vanreeonline.nl` met External Login **5.3.0** heeft Joomla de update herkend en geïnstalleerd. Pakket en beide plugins tonen v1.0.3 en Package ID 10229; de gebruiker bevestigt dat inloggen na de update werkt. De gebruiker heeft de OIDC-login na de upgrade bevestigd. Uitloggen en autorisaties zijn niet afzonderlijk opnieuw getest na de upgrade; de eerdere functionele tests vóór de upgrade waren geslaagd. De afwijking bij aanmelden vanaf `/index.php` is een afzonderlijk probleem ([issue #20](https://github.com/Thidjs/scouting-nederland-oidc/issues/20)) en geen aangetoonde regressie van 5.3.0.
 
-**Releaseherstel:** bij v1.0.3 was de GitHub Release al handmatig aangemaakt, waardoor `gh release create` faalde. Het oorspronkelijke, gevalideerde Actions-artifact is daarna via een eenmalige herstelworkflow aan de bestaande release toegevoegd en de Joomla-updatefeed is gepubliceerd. De reguliere releaseworkflow is aangepast zodat een bestaande release het asset krijgt via `gh release upload`. De tag `v1.0.3` is niet verplaatst.
+**Releaseherstel:** bij v1.0.3 was de GitHub Release al handmatig aangemaakt, waardoor `gh release create` faalde. Het oorspronkelijke, gevalideerde Actions-artifact is daarna via een eenmalige herstelworkflow aan de bestaande release toegevoegd en de Joomla-updatefeed is gepubliceerd. De reguliere releaseworkflow is aangepast zodat een bestaande release het asset krijgt via `gh release upload`. De tag `v1.0.3` is niet verplaatst. Na succesvolle validatie is de eenmalige herstelworkflow `.github/workflows/recover-v1.0.3.yml` weer verwijderd; de reguliere releaseworkflow blijft bestaan.
 
 ## Geteste serverinstellingen (v1.0.1)
 
@@ -126,7 +126,7 @@ De publieke [Joomla-updatefeed](https://thidjs.github.io/scouting-nederland-oidc
 
 ## Roadmap
 
-**v1.0.3 (uitgebracht):** compatibiliteit met External Login 5.2.0 én 5.3.0 en succesvol geteste Joomla-updatedetectie en installatie op de testomgeving ([issue #19](https://github.com/Thidjs/scouting-nederland-oidc/issues/19)). Functionele regressietest na de update is nog in afronding. Zie [CHANGELOG.md](CHANGELOG.md).
+**v1.0.3 (uitgebracht):** compatibiliteit met External Login 5.2.0 én 5.3.0 en succesvol geteste Joomla-updatedetectie en installatie op de testomgeving ([issue #19](https://github.com/Thidjs/scouting-nederland-oidc/issues/19)). De OIDC-login na de update en de schone pakketinstallatie zijn bevestigd; overige functionele scenario's zijn na de upgrade niet afzonderlijk herhaald. Zie [CHANGELOG.md](CHANGELOG.md).
 
 **v1.0.2 (uitgebracht):** Joomla-updatefeed via GitHub Pages, automatische releasepublicatie en controle op consistente manifestdatums ([issue #15](https://github.com/Thidjs/scouting-nederland-oidc/issues/15)). De installatie en updatesite-registratie zijn getest; detectie en installatie van v1.0.3 zijn op de testomgeving bevestigd. Zie [CHANGELOG.md](CHANGELOG.md).
 
