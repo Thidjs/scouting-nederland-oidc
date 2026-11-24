@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4] - 2026-11-24 (voorbereiding; niet gepubliceerd)
+
+- Installer leest de versie van het geïnstalleerde External Login-**pakket** (`pkg_externallogin`) in plaats van de component (`com_externallogin`), waarvan de versie op productie leeg blijkt.
+- Ondersteunde External Login-versies blijven strikt 5.2.0 en 5.3.0; de controle op de authenticatieplugin blijft behouden.
+- Verbeterde foutmelding bij een ontbrekende of lege pakketversie.
+- Regressietest en vrijgave pas na validatie van de pakketregistratie en de Joomla-updateroute.
+
 ## [1.0.3] - 2026-11-24 (voorbereiding; nog niet gepubliceerd)
 
 - Installer accepteert uitsluitend de geteste External Login-versies 5.2.0 en 5.3.0; andere versies blijven geblokkeerd.
