@@ -23,18 +23,18 @@ class pkg_scoutingoidcInstallerScript
             ->from($db->quoteName('#__extensions'))
             ->where(
                 $db->quoteName('type') . ' = '
-                . $db->quote('component')
+                . $db->quote('package')
             )
             ->where(
                 $db->quoteName('element') . ' = '
-                . $db->quote('com_externallogin')
+                . $db->quote('pkg_externallogin')
             );
 
         $db->setQuery($query);
-        $component = $db->loadAssoc();
+        $package = $db->loadAssoc();
 
-        $metadata = $component
-            ? json_decode((string) $component['manifest_cache'], true)
+        $metadata = $package
+            ? json_decode((string) $package['manifest_cache'], true)
             : null;
 
         $version = is_array($metadata)
@@ -46,7 +46,7 @@ class pkg_scoutingoidcInstallerScript
                 'Scouting Nederland OIDC vereist '
                 . 'External Login 5.2.0 of 5.3.0. '
                 . 'Aangetroffen versie: '
-                . (is_string($version) ? $version : 'niet geïnstalleerd')
+                . (is_string($version) && trim($version) !== '' ? $version : 'onbekend of niet geïnstalleerd')
             );
         }
 

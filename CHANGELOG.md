@@ -1,10 +1,18 @@
 # Changelog
 
-## [1.0.3] - 2026-11-24 (voorbereiding; nog niet gepubliceerd)
+## [1.0.4] - 2026-11-24
+
+- Installer leest de versie van het geïnstalleerde External Login-**pakket** (`pkg_externallogin`) in plaats van de component (`com_externallogin`), waarvan de versie op productie leeg blijkt.
+- Ondersteunde External Login-versies blijven strikt 5.2.0 en 5.3.0; de controle op de authenticatieplugin blijft behouden.
+- Verbeterde foutmelding bij een ontbrekende of lege pakketversie.
+- GitHub Actions-build en handmatige installatie op een Joomla-testsite met External Login 5.2.0 geslaagd; alle drie OIDC-extensies staan op 1.0.4.
+- Joomla Update Manager-updatepad en functionele OIDC-login worden na publicatie afzonderlijk gevalideerd.
+
+## [1.0.3] - 2026-11-24
 
 - Installer accepteert uitsluitend de geteste External Login-versies 5.2.0 en 5.3.0; andere versies blijven geblokkeerd.
 - Functionele compatibiliteit met External Login 5.3.0 op Joomla-testomgeving bevestigd: login, logout, hernieuwde login, bestaande identiteitskoppeling en kalenderrechten.
-- De automatische update van Scouting OIDC v1.0.2 naar v1.0.3 via Joomla moet nog end-to-end worden getest.
+- Update via Joomla Update Manager op de testomgeving met External Login 5.3.0 geslaagd; op External Login 5.2.0 blokkeert de installer ten onrechte vanwege ontbrekende componentversie (opgelost in v1.0.4).
 - Het reeds onder External Login 5.2.0 aanwezige testomgevingprobleem met callbackpad `/index.php` wordt afzonderlijk gevolgd in issue #20.
 
 

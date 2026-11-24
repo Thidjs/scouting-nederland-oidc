@@ -2,7 +2,7 @@
 <extension type="package" version="5.4" method="upgrade">
     <name>Scouting Nederland OIDC</name>
     <packagename>scoutingoidc</packagename>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
     <creationDate>24-11-2026</creationDate>
     <author>Thijs van Ree</author>
     <packager>Thijs van Ree</packager>
