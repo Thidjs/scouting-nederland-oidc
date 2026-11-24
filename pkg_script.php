@@ -41,10 +41,10 @@ class pkg_scoutingoidcInstallerScript
             ? ($metadata['version'] ?? null)
             : null;
 
-        if ($version !== '5.2.0') {
+        if (!in_array($version, ['5.2.0', '5.3.0'], true)) {
             return $this->deny(
-                'Scouting Nederland OIDC 1.0.0 vereist '
-                . 'External Login 5.2.0. '
+                'Scouting Nederland OIDC vereist '
+                . 'External Login 5.2.0 of 5.3.0. '
                 . 'Aangetroffen versie: '
                 . (is_string($version) ? $version : 'niet geïnstalleerd')
             );
